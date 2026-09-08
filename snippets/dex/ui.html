@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dex</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <div class="bar">
+    <input id="q" placeholder="find by name or class, then Enter" spellcheck="false">
+    <!-- Paste an address from Cheat Engine. The snippet indexes the tree and
+         says which object it lives inside, then jumps there. -->
+    <input id="addr" class="addr" placeholder="0x… address → object" spellcheck="false">
+    <button id="root">collapse all</button>
+    <button id="tidy">hide empty services</button>
+    <!-- Flat inventory of RemoteEvent/RemoteFunction/Bindable*. Read only: it
+         lists what exists, it cannot fire one or show a call's arguments. -->
+    <button id="rem">remotes</button>
+    <span id="stat" class="stat"></span>
+  </div>
+
+  <!-- Scanning happens INSIDE known instances, not across the heap. That is
+       what makes it finish in under a second and arrive already named. -->
+  <div class="bar bar2">
+    <select id="st">
+      <option>f32</option><option>f64</option><option>i32</option><option>ptr</option>
+    </select>
+    <!-- ptr takes hex, everything else decimal. It answers the reverse question:
+         not "what is this object's health" but "who points AT this address". -->
+    <input id="sv" class="addr" placeholder="value" spellcheck="false">
+    <button id="sgo">scan</button>
+    <span class="sep">narrow</span>
+    <button data-n="eq">=</button>
+    <button data-n="ne">≠</button>
+    <button data-n="gt">↑</button>
+    <button data-n="lt">↓</button>
+    <button data-n="ch">changed</button>
+    <button data-n="un">same</button>
+    <button id="sx">clear</button>
+    <span id="sstat" class="stat"></span>
+  </div>
+
+  <div class="split">
+    <!-- The tree is a FLAT list of rows the snippet handed us. The page never
+         walks anything and holds no expansion state of its own; that split was
+         what made the previous explorer disagree with itself. -->
+    <div id="tree" class="tree"></div>
+    <!-- Drag to resize the side pane, double-click to put it back. The handle
+         carries the dividing line, so what you grab is what you see. -->
+    <div id="gutter" class="gutter" title="drag to resize · double-click to reset"></div>
+    <div id="side" class="side"></div>
+  </div>
+
+  <script src="ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+// Application icon.
+//
+// The ID matters: Explorer, the taskbar and Alt-Tab all show the icon with the
+// LOWEST numeric ID in the executable, not the first one declared. Using 1
+// makes that unambiguous, and leaves room above for anything added later.
+//
+// Deliberately icon-only. Embedding a manifest here as well is the obvious
+// next step and it breaks the link: MinGW already supplies a default manifest,
+// and a second one fails with ".rsrc merge failure: multiple non-default
+// manifests". The VeBDC project hit exactly that. If a manifest is ever needed,
+// it has to REPLACE MinGW's rather than sit beside it.
+#define IDI_APPICON 1
+
+IDI_APPICON ICON "icon.ico"

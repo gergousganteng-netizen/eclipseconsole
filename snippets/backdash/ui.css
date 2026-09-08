@@ -1,0 +1,117 @@
+:root { color-scheme: dark }
+* { box-sizing: border-box }
+
+body {
+  margin: 0; height: 100vh; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: #0e0e12; color: #d2d4da;
+  font: 13px system-ui, "Segoe UI", sans-serif;
+}
+
+/* ---- header ------------------------------------------------------------ */
+#hd { padding: 11px 14px 9px; background: #141419; border-bottom: 1px solid #22232b }
+#ttlrow { display: flex; align-items: baseline; gap: 8px }
+#ttl { font-size: 15px; font-weight: 600; letter-spacing: .2px }
+#arm { font-size: 11px; font-weight: 600 }
+#arm.on  { color: #e2626b }
+#arm.off { color: #6f7686 }
+#sub { font-size: 11px; color: #6f7686; margin-top: 2px }
+
+/* ---- tabs -------------------------------------------------------------- */
+#tabs { display: flex; background: #141419; border-bottom: 1px solid #22232b }
+.tab {
+  padding: 7px 14px; font-size: 12px; color: #7d8496; cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.tab:hover { color: #b6bbc8 }
+.tab.on { color: #e8eaf0; border-bottom-color: #6e7bff }
+
+#body { flex: 1; overflow: auto; padding: 12px 14px }
+.pane { display: none }
+.pane.on { display: block }
+
+/* ---- cards ------------------------------------------------------------- */
+.card {
+  background: #141419; border: 1px solid #22232b; border-radius: 8px;
+  padding: 11px 12px; margin-bottom: 10px;
+}
+h4 {
+  margin: 0 0 9px; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .08em; color: #6f7686;
+}
+.row { display: flex; align-items: center; gap: 9px }
+.row + .row { margin-top: 9px }
+.lbl { color: #9aa0b0 }
+.val {
+  margin-left: auto; font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px; color: #e8eaf0; white-space: nowrap;
+}
+.cnt { font-variant-numeric: tabular-nums }
+
+.key {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+  background: #1c1d24; border: 1px solid #2a2c36; border-radius: 4px;
+  padding: 2px 7px; color: #c8cdff; white-space: nowrap; cursor: pointer;
+}
+.key:hover { border-color: #4a5cff }
+.key.binding { border-color: #e8b062; color: #e8b062 }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #3a3d4a }
+.dot.on   { background: #6ee7a8 }
+.dot.off  { background: #e2626b }
+.dot.idle { background: #4a4d5a }
+
+.bar { height: 4px; border-radius: 2px; background: #1c1d24; overflow: hidden; flex: 1 }
+.bar > i { display: block; height: 100%; width: 0; background: #6ee7a8;
+           transition: width .08s linear }
+.bar.warn > i { background: #e8b062 }
+
+/* ---- settings ---------------------------------------------------------- */
+.set { display: flex; align-items: center; gap: 9px; padding: 5px 0 }
+.set + .set { border-top: 1px solid #1b1c23 }
+.set .lbl { flex: 1; min-width: 0 }
+.set .hint { display: block; font-size: 10px; color: #5f6675; margin-top: 1px }
+
+input[type=number], input[type=text], select {
+  width: 88px; padding: 3px 6px; text-align: right;
+  background: #1c1d24; border: 1px solid #2a2c36; border-radius: 4px;
+  color: #e8eaf0; font: inherit; font-size: 12px;
+}
+input[type=text].wide { width: 190px; text-align: left }
+select { text-align: left; width: 104px }
+input:focus, select:focus { outline: none; border-color: #4a5cff }
+/* The spinners cramp an already narrow field and the value is typed anyway. */
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0 }
+
+/* A switch rather than a checkbox: it reads as on/off at a glance in a list
+   of numbers, where a tick does not. */
+.sw {
+  position: relative; width: 34px; height: 18px; flex: none;
+  background: #24262f; border-radius: 9px; cursor: pointer;
+  transition: background .12s ease;
+}
+.sw::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #6f7686; transition: transform .12s ease, background .12s ease;
+}
+.sw.on { background: #2b4636 }
+.sw.on::after { transform: translateX(16px); background: #6ee7a8 }
+
+#setfoot { display: flex; gap: 8px; align-items: center; margin-top: 4px }
+button {
+  padding: 5px 11px; background: #1c1d24; border: 1px solid #2a2c36;
+  border-radius: 5px; color: #d2d4da; font: inherit; font-size: 12px;
+  cursor: pointer;
+}
+button:hover { border-color: #4a5cff; color: #fff }
+button.prim { border-color: #4a5cff; color: #c8cdff }
+#saved { font-size: 11px; color: #6ee7a8; opacity: 0; transition: opacity .2s }
+#saved.show { opacity: 1 }
+
+/* ---- status ------------------------------------------------------------ */
+#status {
+  padding: 8px 14px; background: #141419; border-top: 1px solid #22232b;
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+  color: #8b91a3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

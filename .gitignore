@@ -1,0 +1,9 @@
+# Build output. 432 MB, and build/toolchain is the 319 MB bundled compiler that
+# cmake cannot reproduce -- it is fetched by tools/bundle_toolchain.ps1.
+build/
+
+# The finished installer, 37 MB per build.
+dist/
+
+# Runtime state and traces, never source.
+*.log

@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Auto parry</title>
+<link rel="stylesheet" href="ui.css">
+
+<!-- Docked and NOT passthrough: the panel is clicked, so it owns its rect.
+     Everything outside it still goes to the game. -->
+<div id="wrap">
+  <div id="bar">
+    <span class="brand">Eclipse</span>
+    <span class="by">parry</span>
+    <span id="rate"></span>
+    <button id="close" title="Hide (Insert brings it back)">&#215;</button>
+  </div>
+  <div id="body">
+    <div id="tabs">
+      <button class="tab on" data-tab="live">Live</button>
+      <button class="tab"    data-tab="dials">Dials</button>
+    </div>
+
+    <div id="pane">
+      <!-- ---- live -------------------------------------------------------- -->
+      <div id="live" class="view show">
+        <div class="row">
+          <button id="go" class="tgl on">ON</button>
+          <span id="state" class="pill">idle</span>
+        </div>
+        <div id="ball"></div>
+        <div id="tally">
+          <div class="cell"><b id="c_ok">0</b><span>confirmed</span></div>
+          <div class="cell"><b id="c_turn">0</b><span>turned</span></div>
+          <div class="cell"><b id="c_bad">0</b><span>failed</span></div>
+          <div class="cell"><b id="c_unk">0</b><span>unresolved</span></div>
+        </div>
+        <div id="last"></div>
+      </div>
+
+      <!-- ---- dials ------------------------------------------------------- -->
+      <!-- Rows are generated from the snippet's own list, so a dial added in
+           C++ appears here without touching this file. -->
+      <div id="dials" class="view"></div>
+    </div>
+  </div>
+</div>
+
+<script src="ui.js"></script>

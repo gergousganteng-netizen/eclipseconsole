@@ -1,0 +1,109 @@
+/* A toast surface, not a panel.
+   NOTHING here paints a page background -- docked, the window is the alpha-0
+   overlay and an unpainted page shows the game through it. Only the cards have
+   a ground, so what you see is toasts floating over Roblox.
+   (Floating rather than docked, the host paints its own ground and it will look
+   like a dark window instead. Dock it.) */
+/* NO color-scheme HERE. `color-scheme: dark` makes Chromium paint its canvas
+   BLACK instead of leaving it transparent, which shows up as a solid black
+   rectangle over the game -- the page is transparent, the CANVAS underneath it
+   is not. Colours are all explicit below, so the scheme buys nothing anyway. */
+* { box-sizing: border-box }
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: transparent;
+  font: 15px system-ui, "Segoe UI", sans-serif;
+}
+
+/* BOTTOM-ANCHORED and right-aligned: new toasts append, arriving at the bottom
+   and pushing the older ones UP. The newest is always in the same place, so
+   the eye never hunts. */
+#stack {
+  position: fixed; right: 0; bottom: 0; left: 0;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  align-items: flex-end; gap: 9px;
+  padding: 12px;
+  max-height: 100%;
+  pointer-events: none;    /* clicks fall through to the game */
+}
+
+.t {
+  flex: 0 0 auto;
+  max-width: 100%;
+  min-width: 210px;
+  padding: 11px 15px 12px;
+  border-radius: 9px;
+  background: #12131af2;
+  border: 1px solid #ffffff16;
+  border-left: 4px solid #3a3d4a;
+  box-shadow: 0 5px 18px #00000099;
+  color: #d2d4da;
+  animation: in .26s cubic-bezier(.2,.9,.3,1);
+  transition: opacity .4s, transform .4s, max-height .4s,
+              margin-bottom .4s, padding .4s;
+  max-height: 130px;
+}
+/* In from the right, out to the right -- one object arriving and leaving,
+   not two different effects. */
+/* Fully off the right edge, so it travels IN rather than nudging. */
+@keyframes in {
+  from { opacity: 0; transform: translateX(110%) }
+  to   { opacity: 1; transform: none }
+}
+.t.out {
+  opacity: 0; transform: translateX(110%);
+  max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: -9px;
+}
+
+/* Picture left, text right. The bar (when there is one) sits under BOTH, so
+   it spans the whole card rather than just the text column. */
+.body { display: flex; align-items: center; gap: 11px }
+.txt  { min-width: 0 }          /* lets the name ellipsis instead of pushing */
+.pfp  { width: 40px; height: 40px; border-radius: 50%; flex: 0 0 auto;
+        background: #ffffff0f; object-fit: cover }
+
+/* Line 1 is WHO, line 2 is WHAT. Two lines rather than one, because the names
+   here run long -- a display name plus an @username on one row was already
+   truncating, and the whole point of showing both is that you can read both. */
+.top  { display: flex; align-items: baseline; gap: 7px;
+        white-space: nowrap; overflow: hidden }
+.disp { font-size: 15px; font-weight: 650; color: #e8eaf0; letter-spacing: .1px;
+        overflow: hidden; text-overflow: ellipsis }
+.user { font-size: 12px; color: #6b7285; flex: 0 0 auto }
+
+.bot  { display: flex; align-items: baseline; gap: 10px;
+        justify-content: space-between; margin-top: 3px; white-space: nowrap }
+.what { font-size: 13px; color: #9aa2b4 }
+.ago  { font-size: 12px; color: #5d6474; font-variant-numeric: tabular-nums }
+
+/* ---- has the ult ------------------------------------------------------- */
+.t.has { border-left-color: #ffb454; background: #1e1810f2 }
+.t.has .what { color: #ffb454; font-weight: 600 }
+
+/* ---- lost it ----------------------------------------------------------- */
+.t.lost { border-left-color: #4e5464; background: #12131ae6 }
+.t.lost .disp { color: #8b90a0 }
+
+/* ---- Death Counter: the one with a clock ------------------------------- */
+.t.dc { border-left-color: #e2626b; background: #1f1216f5;
+        animation: in .26s cubic-bezier(.2,.9,.3,1), flash 1.2s ease-out; }
+.t.dc .what { color: #ff8d97; font-weight: 700; letter-spacing: .3px }
+.t.dc .ago  { color: #ff8d97; font-weight: 700; font-size: 15px }
+@keyframes flash {
+  0%   { box-shadow: 0 0 0 1px #e2626b, 0 0 24px #e2626b88, 0 5px 18px #00000099 }
+  100% { box-shadow: 0 0 0 1px transparent, 0 0 0 transparent, 0 5px 18px #00000099 }
+}
+/* The bar IS the timer. A number you have to read; a bar you catch from the
+   corner of your eye while looking at the game. */
+.bar { height: 3px; margin-top: 9px; background: #ffffff16; border-radius: 2px;
+       overflow: hidden }
+.bar i { display: block; height: 100%; width: 100%; background: #e2626b;
+         transition: width .22s linear }
+.t.dc.done { border-left-color: #4e5464; background: #12131ae6 }
+.t.dc.done .what, .t.dc.done .ago { color: #6f7686; font-weight: 400 }
+.t.dc.done .ago { font-size: 12px }
+.t.dc.done .bar { display: none }
+
+/* Yours, so it reads as "that is me" rather than a warning about someone. */
+.t.me .disp { color: #6ee7a8 }

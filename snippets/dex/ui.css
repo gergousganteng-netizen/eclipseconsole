@@ -1,0 +1,195 @@
+﻿:root {
+  --bg:      #0e0f13;
+  --bg2:     #15171d;
+  --line:    #23262f;
+  --fg:      #d7dae2;
+  --faint:   #7c8190;
+  --accent:  #6ee7a8;
+  --cls:     #8ab4f8;
+  --num:     #e0a850;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; height: 100%;
+  background: var(--bg); color: var(--fg);
+  font: 12px/1.5 "Segoe UI", system-ui, sans-serif;
+}
+/* The PAGE never scrolls -- only the panes inside it do. Without this the two
+   toolbars plus a pane sized by a hardcoded guess could add up to more than the
+   viewport, and the whole app grew a scrollbar down the right that dragged the
+   entire UI. Flex removes the guess: the bars take what they need, the split
+   takes the rest, and it stays right whatever the bars end up measuring. */
+html, body { overflow: hidden; }
+body { display: flex; flex-direction: column; }
+.bar { flex: none; }
+
+.bar {
+  display: flex; gap: 8px; align-items: center;
+  padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--bg2);
+}
+.bar input {
+  flex: 1; min-width: 0;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px 8px; font: inherit;
+}
+.bar input.addr { flex: 0 0 190px; font-family: Consolas, monospace; }
+
+/* A *Value instance's payload, read out and shown as text. */
+.val {
+  margin: 8px 0; padding: 4px 7px; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--bg); color: var(--accent);
+  font-family: Consolas, monospace; word-break: break-all;
+}
+
+.wtitle {
+  color: var(--faint); font-family: Consolas, monospace;
+  margin: 10px 0 4px; text-transform: none;
+}
+/* Decoded text, on its own line because it is usually longer than the numeric
+   columns and is the thing you are actually reading. */
+tr.strrow td {
+  color: var(--ok, #7fd6a2); padding: 0 0 4px 12px;
+  white-space: normal; word-break: break-word;
+}
+.bar input:focus { outline: none; border-color: var(--accent); }
+.bar button {
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px 10px; font: inherit; cursor: pointer;
+}
+.bar button:hover { border-color: var(--faint); }
+/* The status line must never dictate the toolbar's width. Copying a remote path
+   put a 100-character nowrap string in here, which pushed the find box to zero
+   and wrapped every button onto two lines. It shrinks and ellipsizes now; the
+   full text is in the title attribute. */
+.stat {
+  color: var(--faint); white-space: nowrap;
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+/* Buttons keep their own size and never wrap their label. */
+.bar button, .bar select { flex: none; white-space: nowrap; }
+/* The find box gives way last, but never disappears entirely. */
+.bar input#q { min-width: 140px; }
+
+.bar2 { border-bottom: 1px solid var(--line); }
+.bar2 select {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+  border-radius: 4px; padding: 5px 6px; font: inherit; font-family: Consolas, monospace;
+}
+.sep { color: var(--faint); padding-left: 6px; }
+
+/* Fills whatever the bars leave. min-height:0 is load-bearing -- without it a
+   flex child refuses to shrink below its content and the overflow comes back. */
+.split { display: flex; flex: 1; min-height: 0; }
+
+/* Scan results share the side pane. A hit the conf can name is the likely
+   answer, so it is coloured rather than buried in a wall of offsets. */
+.cand { display: flex; gap: 8px; padding: 2px 0; cursor: pointer; white-space: nowrap; }
+.cand:hover { background: #191c23; }
+.cand .cn { color: var(--fg); }
+.cand .cc { color: var(--cls); }
+.cand .co { color: var(--faint); }
+.cand .cv { color: var(--num); margin-left: auto; }
+.cand.namedhit .co { color: var(--accent); }
+
+/* The tree scrolls on its own so a 4000-row expansion cannot push the detail
+   pane off screen. */
+.tree {
+  flex: 1; overflow: auto; padding: 4px 0;
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+.side {
+  width: 420px; flex: none; overflow: auto;
+  background: var(--bg2); padding: 10px;
+}
+
+/* The drag handle between the two panes. It carries the dividing line rather
+   than sitting beside one, because a transparent handle next to a border makes
+   the thing you see and the thing you can grab two different objects -- and the
+   one you aim at is always the wrong one. 6px is a real target; 1px is not. */
+.gutter {
+  flex: none; width: 6px; cursor: col-resize;
+  border-left: 1px solid var(--line); background: var(--bg2);
+}
+.gutter:hover, .gutter.drag { border-left-color: var(--accent); background: var(--bg); }
+
+.row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 1px 8px; cursor: default; white-space: nowrap;
+}
+.row:hover { background: #191c23; }
+.row.sel   { background: #1d2a24; }
+
+/* Fixed-width so the twisty column never shifts as rows open and close. */
+.tw {
+  width: 12px; flex: none; text-align: center;
+  color: var(--faint); cursor: pointer; user-select: none;
+}
+.tw:hover { color: var(--fg); }
+
+.nm  { color: var(--fg); }
+.cl  { color: var(--cls); }
+.vl  { color: var(--num); }
+.ad  { color: var(--faint); margin-left: auto; padding-left: 12px; cursor: pointer; }
+.ad:hover { color: var(--fg); text-decoration: underline; }
+
+/* Anything that copies or navigates on click. Underlined on hover only, so a
+   dense table does not look like a wall of links. */
+.lnk { cursor: pointer; }
+.lnk:hover { text-decoration: underline; color: var(--fg); }
+.hint { color: var(--faint); margin-top: 10px; font-size: 11px; }
+
+.side h3 {
+  margin: 0 0 2px; font-size: 12px; font-weight: 600; color: var(--accent);
+}
+.side .path { color: var(--faint); word-break: break-all; margin-bottom: 10px; }
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-weight: 500; color: var(--faint);
+  border-bottom: 1px solid var(--line); padding: 4px 6px 4px 0;
+}
+td { padding: 2px 6px 2px 0; font-family: Consolas, monospace; }
+tr.prim td:first-child::after { content: " ·P"; color: var(--faint); }
+td.n { color: var(--num); }
+td.p { color: var(--cls); }
+.empty { color: var(--faint); padding: 8px 0; }
+
+/* Remotes inventory. A container header every time the folder changes -- the
+   folder is most of what a remote's name means. */
+.rgroup {
+  color: var(--faint); font-family: Consolas, monospace;
+  padding: 8px 8px 2px; border-top: 1px solid var(--line); margin-top: 4px;
+  word-break: break-all; white-space: normal;
+}
+.rgroup:first-child { border-top: none; margin-top: 0; }
+
+/* No scrollbars. WebView2 is Chromium, so ::-webkit-scrollbar is the one that
+   does the work here; the other two are for completeness.
+   Scrolling itself is untouched -- wheel, drag and shift-wheel for horizontal
+   all still work, the panes just stop spending ~17px of a dense list on chrome. */
+* {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* legacy Edge */
+}
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* Remotes rows: the name gives way, the path button never does. Roblox internal
+   remote names run to 70+ characters and were shoving "copy path" off the edge. */
+.rrow .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rrow .cl { flex: none; }
+.rrow .ad { flex: none; margin-left: 8px; }
+
+/* Declared properties. Dense on purpose -- a class can declare 250 names and
+   the point is to scan them, not read them one per line. Dim = the conf already
+   has an offset; bright = it exists in this client and we cannot locate it yet,
+   which is the only reason to look at this list. */
+.props { display: flex; flex-wrap: wrap; gap: 3px 6px; margin: 4px 0 2px; }
+.prop {
+  font-family: Consolas, monospace; font-size: 11px;
+  color: var(--accent); background: #1a2620; border-radius: 3px; padding: 0 4px;
+}
+.prop.known { color: var(--faint); background: transparent; }

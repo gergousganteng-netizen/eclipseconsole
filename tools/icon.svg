@@ -1,0 +1,48 @@
+<!--
+  Eclipse app icon — source artwork. Serves both Eclipse Console and Eclipse
+  Aimbot; they share a brand, so they should share a mark.
+
+  This is the titlebar .monogram scaled to 256, with two deliberate changes for
+  icon use. Keeping it byte-faithful to the CSS would look worse at 16px, which
+  is where an app icon actually lives.
+
+    CSS (components.css .monogram, on a 20px square)
+      border-radius: 6px                                    = 30%
+      radial-gradient(circle at 32% 30%, #1a1a20 0 44%, #7c74f0 46%)
+      box-shadow: inset 0 0 0 1px #2b2c35
+
+    here, at 256
+      corner radius 77             (30% of 256)
+      disc r=113                   (44% of 256)
+      disc centre (92, 87)         36% / 34%, NOT 32% / 30%
+
+  Change 1 — the disc is nudged toward centre (36%/34%). At 20px on screen the
+  original crescent is fine; shrunk to 16px its thin end disappears and the
+  mark reads as a plain dark blob. Moving the disc in evens the crescent out.
+
+  Change 2 — no inset hairline. #2b2c35 at 1px is a quarter of the visible edge
+  on a 16px icon and only muddies the silhouette. Add it back on the 256 and
+  128 layers if you want it; leave it off at 48 and below.
+
+  The corners are TRANSPARENT on purpose. Windows composites icons over the
+  taskbar, Explorer's white list background and Alt-Tab's blur -- a baked-in
+  #0a0a0c square looks like a rendering fault on a light background.
+
+  Export 16 / 32 / 48 / 256 as PNG, then combine into one multi-size .ico.
+  Figma cannot write .ico; GIMP can, or ImageMagick:
+    magick icon-256.png -define icon:auto-resize=256,48,32,16 icon.ico
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <!-- The violet is the LIT part. The disc below eclipses it, and what is
+         left showing is the crescent. -->
+    <clipPath id="rounded">
+      <rect x="0" y="0" width="256" height="256" rx="77" ry="77"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#rounded)">
+    <rect x="0" y="0" width="256" height="256" fill="#7c74f0"/>
+    <circle cx="92" cy="87" r="113" fill="#1a1a20"/>
+  </g>
+</svg>

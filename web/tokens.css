@@ -1,0 +1,202 @@
+/* ==========================================================================
+   ECLIPSE UI KIT — tokens.css
+   --------------------------------------------------------------------------
+   The single source of truth for the Eclipse visual language
+   (dark "Operator" style — Raycast / Linear DNA).
+
+   Every color, size, radius, shadow and timing used by components.css
+   lives here as a custom property on :root. No raw values should appear
+   anywhere else in the kit — reskin the whole system by editing this file.
+   ========================================================================== */
+
+:root {
+
+  /* ------------------------------------------------------------------
+     COLOR · GROUNDS & SURFACES
+     Elevation ladder, darkest → lightest. Each step is one "level up"
+     from the void. Interactive rest states sit on -1/-2/-3; hover and
+     active/selected have their own dedicated fills.
+     ------------------------------------------------------------------ */
+  --bg-0:      #0a0a0c;   /* app ground — the desktop behind the window   */
+  --bg-1:      #0d0d10;   /* window body, editor, sidebar, console body   */
+  --bg-2:      #141417;   /* panels, palette, console head, active tab    */
+  --bg-3:      #17171b;   /* raised chrome: inputs, buttons, kbd, icons   */
+  --bg-hover:  #1b1c21;   /* hover fill for rows / nav / ghost buttons    */
+  --bg-active: #202128;   /* selected fill for rows / nav items           */
+
+  /* Sub-pixel row-hover wash for dense mono content (code lines, logs) */
+  --wash-hover: rgba(255, 255, 255, 0.015);
+
+  /* Modal scrim behind the command palette */
+  --scrim: rgba(6, 6, 8, 0.55);
+
+  /* ------------------------------------------------------------------
+     COLOR · HAIRLINES
+     Three border weights. --line is the default 1px hairline;
+     -soft for internal panel seams; -strong for emphasis/hover borders.
+     ------------------------------------------------------------------ */
+  --line:        #22232a;
+  --line-soft:   #1a1b21;
+  --line-strong: #2b2c35;
+
+  /* ------------------------------------------------------------------
+     COLOR · TEXT TIERS
+     Four steps of foreground. Default body text is --fg-mut;
+     --fg is reserved for primary/active content.
+     ------------------------------------------------------------------ */
+  --fg:       #e6e7ec;   /* primary — active labels, code, headings      */
+  --fg-mut:   #9a9ca7;   /* secondary — resting nav, body copy, values   */
+  --fg-dim:   #64656f;   /* tertiary — icons, placeholders, inactive tab */
+  --fg-faint: #45464e;   /* quaternary — line numbers, meta, kickers     */
+
+  /* ------------------------------------------------------------------
+     COLOR · ACCENT (the ONE brand color — soft indigo-violet)
+     Used for: primary button, active rails/underlines, selection,
+     focus rings, dirty-tab dots, active nav icons.
+     Swap these four values to rebrand the entire kit.
+     ------------------------------------------------------------------ */
+  --accent:       #7c74f0;
+  --accent-press: #6E63E6;                       /* :hover/:active of primary */
+  --accent-soft:  rgba(124, 116, 240, 0.14);     /* selection fill / ::selection */
+  --accent-line:  rgba(124, 116, 240, 0.35);     /* accent-tinted hairline    */
+  --on-accent:    #ffffff;                       /* text on accent fills      */
+  --on-accent-fill: rgba(255, 255, 255, 0.14);   /* kbd chip fill on accent   */
+  --on-accent-line: rgba(255, 255, 255, 0.22);   /* kbd chip border on accent */
+
+  /* ------------------------------------------------------------------
+     COLOR · SEMANTIC (console levels ONLY — never decorative)
+     Also reused by the macOS traffic lights, which share these hues.
+     ------------------------------------------------------------------ */
+  --ok:   #4ec98f;
+  --warn: #e0a850;
+  --err:  #e0685f;
+  --info: #9a9ca7;   /* info level = secondary text tier */
+
+  /* Softened message tints so level-colored log BODIES read calmer
+     than their level badges */
+  --ok-msg:   #c9d6cf;
+  --warn-msg: #d8c9ad;
+  --err-msg:  #d8bab6;
+
+  /* Traffic-light rest state (colorless until the group is relevant) */
+  --traffic-idle: #2a2b32;
+
+  /* ------------------------------------------------------------------
+     COLOR · SYNTAX (code editor token palette)
+     ------------------------------------------------------------------ */
+  --syn-key:  #b58bf0;          /* keywords: local, function, end …     */
+  --syn-str:  #7fc99a;          /* strings                              */
+  --syn-fn:   #6fb2e8;          /* function calls                       */
+  --syn-num:  #d99a6c;          /* numbers                              */
+  --syn-glob: #e0a850;          /* known globals: game, workspace …     */
+  --syn-com:  var(--fg-faint);  /* comments (italic)                    */
+  --syn-op:   var(--fg-mut);    /* operators                            */
+  --syn-punc: var(--fg-dim);    /* punctuation                          */
+  --syn-var:  var(--fg);        /* identifiers                          */
+
+  /* ------------------------------------------------------------------
+     COLOR · DECORATIVE GRADIENT STOPS
+     (monogram + avatar; the ambient page wash)
+     ------------------------------------------------------------------ */
+  --ink-deep:      #1a1a20;                      /* monogram eclipse disc     */
+  --avatar-hi:     #2a2740;                      /* avatar gradient start     */
+  --avatar-lo:     #1a1b22;                      /* avatar gradient end       */
+  --ambient-a:     rgba(124, 116, 240, 0.05);    /* top-left violet wash      */
+  --ambient-b:     rgba(62, 199, 176, 0.03);     /* bottom-right teal wash    */
+
+  /* Scrollbar */
+  --scrollbar-thumb:       #212228;
+  --scrollbar-thumb-hover: #2c2d35;
+
+  /* ------------------------------------------------------------------
+     TYPE · FAMILIES  (system fonts only)
+     ------------------------------------------------------------------ */
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "Menlo", monospace;
+
+  /* ------------------------------------------------------------------
+     TYPE · SCALE
+     A tight 10–15px UI scale. 13px is the app default.
+     ------------------------------------------------------------------ */
+  --fs-2xs:  10px;     /* palette section kickers                       */
+  --fs-xs:   10.5px;   /* kbd, chips, side/console labels, sub-meta     */
+  --fs-sm:   11px;     /* counts, hints, version, avatar initials       */
+  --fs-md:   11.5px;   /* stats, link buttons, attached readout         */
+  --fs-base: 12px;     /* log lines, tab filenames, cmdk, footer name   */
+  --fs-lg:   12.5px;   /* buttons, tabs, script names                   */
+  --fs-xl:   13px;     /* app default: body, nav, code, palette items   */
+  --fs-2xl:  13.5px;   /* wordmark                                      */
+  --fs-3xl:  15px;     /* palette input                                 */
+
+  /* Weights */
+  --fw-normal:   400;
+  --fw-medium:   500;   /* buttons, version tag                         */
+  --fw-semibold: 600;   /* wordmark, labels, primary button, icon tags  */
+
+  /* Line heights */
+  --lh-ui:   1.5;      /* general UI text                               */
+  --lh-code: 20px;     /* editor lines (fixed, with 13px mono)          */
+  --lh-log:  19px;     /* console lines (fixed, with 12px mono)         */
+
+  /* Letter spacing */
+  --ls-label:    0.7px;   /* uppercase section/console labels + kickers */
+  --ls-lvl:      0.4px;   /* uppercase log level badges                 */
+  --ls-kbd:      0.3px;   /* kbd chips                                  */
+  --ls-wordmark: 0.2px;   /* wordmark                                   */
+
+  /* ------------------------------------------------------------------
+     SPACE · 8px rhythm (with a 4px half-step for tight chrome)
+     ------------------------------------------------------------------ */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* Fixed chrome heights */
+  --h-titlebar:  44px;
+  --h-tabstrip:  40px;
+  --h-console-head: 34px;
+  --h-console:   210px;
+  --h-bottombar: 52px;
+  --h-control:   32px;   /* buttons, nav items                          */
+  --h-cmdk:      26px;
+
+  /* ------------------------------------------------------------------
+     RADII
+     ------------------------------------------------------------------ */
+  --r-win: 12px;   /* window shell, command palette                     */
+  --r-md:  8px;    /* (reserved mid step)                               */
+  --r-ctl: 7px;    /* buttons, cmdk, icon buttons, palette items        */
+  --r-sm:  6px;    /* nav items, rows, script icons, monogram           */
+  --r-xs:  5px;    /* kbd, chips                                        */
+  --r-2xs: 4px;    /* tab close hit-target, focus-ring corners          */
+
+  /* ------------------------------------------------------------------
+     SHADOWS
+     ------------------------------------------------------------------ */
+  --shadow-window:                /* floating app window                */
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 24px 60px -20px rgba(0, 0, 0, 0.7),
+    0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --shadow-palette:               /* command palette pop-over           */
+    0 24px 60px -16px rgba(0, 0, 0, 0.8);
+  --inset-hairline: inset 0 0 0 1px var(--line-strong);
+
+  /* ------------------------------------------------------------------
+     MOTION
+     Fast micro-interactions; one springy ease for panels/pop-overs.
+     ------------------------------------------------------------------ */
+  --t-press:  .06s;    /* button push-down                              */
+  --t-fast:   .12s;    /* hover fills, color shifts (rows, tabs, nav)   */
+  --t-med:    .15s;    /* chrome hovers (cmdk, icon-btn, traffic)       */
+  --t-pop:    .16s;    /* palette rise-in                               */
+  --t-panel:  .22s;    /* console collapse/expand                       */
+  --ease:        ease;
+  --ease-spring: cubic-bezier(.2, .7, .2, 1);
+
+  /* Pulse dot */
+  --t-pulse-idle:   2.4s;   /* ambient heartbeat                        */
+  --t-pulse-firing: .7s;    /* rapid pulse ×3 while executing           */
+}

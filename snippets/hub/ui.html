@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Eclipse hub</title>
+<link rel="stylesheet" href="ui.css">
+
+<!-- Docked and NOT passthrough: the panel is clicked, so it owns its rect.
+     Everything outside it still goes to the game. -->
+<div id="wrap">
+  <div id="bar">
+    <span class="brand">Eclipse</span>
+    <span class="by">hub</span>
+    <span id="count"></span>
+    <button id="close" title="Hide (Insert brings it back)">&#215;</button>
+  </div>
+  <div id="body">
+    <!-- Tabs are a VIEW. Everything keeps running when its tab is hidden. -->
+    <div id="tabs">
+      <button class="tab on" data-tab="players">Players</button>
+      <button class="tab"    data-tab="mov">Movement</button>
+    </div>
+    <div id="pane">
+      <div id="status"></div>
+      <div id="ctl">
+        <button id="go" class="off">FLING OFF</button>
+        <button id="all" class="off">FLING ALL</button>
+        <span id="mode"></span>
+      </div>
+      <div id="list"></div>
+      <div id="empty">nobody here</div>
+
+      <!-- The movement tab has no roster; its own pane replaces the list. -->
+      <div id="mov">
+        <div class="fld">
+          <div class="lbl">walk speed</div>
+          <div class="ctlrow">
+            <button class="stp" data-f="ws" data-d="-8">&#8722;</button>
+            <input class="num" id="ws" data-f="ws" type="text" inputmode="numeric">
+            <button class="stp" data-f="ws" data-d="8">+</button>
+            <button class="tgl" id="wsgo" data-f="ws">OFF</button>
+          </div>
+        </div>
+        <div class="fld">
+          <div class="lbl">jump</div>
+          <div class="ctlrow">
+            <button class="stp" data-f="jp" data-d="-10">&#8722;</button>
+            <input class="num" id="jp" data-f="jp" type="text" inputmode="numeric">
+            <button class="stp" data-f="jp" data-d="10">+</button>
+            <button class="tgl" id="jpgo" data-f="jp">OFF</button>
+          </div>
+        </div>
+        <div class="fld">
+          <div class="lbl">fly</div>
+          <div class="ctlrow">
+            <button class="tgl wide" id="flygo">OFF</button>
+            <span id="flynote"></span>
+          </div>
+        </div>
+        <div id="movnote"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="ui.js"></script>

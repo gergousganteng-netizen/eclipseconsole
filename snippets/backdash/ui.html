@@ -1,0 +1,121 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!-- A real file, loaded with fx_window_navigate, so this can be a normal page:
+     a separate stylesheet, a separate script, relative URLs. Under
+     fx_window_html the whole thing had to be one inline string. -->
+<link rel="stylesheet" href="ui.css">
+</head><body>
+
+<div id="hd">
+  <div id="ttlrow"><span id="ttl">Backdash</span><span id="arm">&mdash;</span></div>
+  <div id="sub">velocity writer</div>
+</div>
+
+<div id="tabs">
+  <div class="tab on" data-p="live">Live</div>
+  <div class="tab" data-p="set">Settings</div>
+</div>
+
+<div id="body">
+
+  <div class="pane on" id="p-live">
+    <div class="card">
+      <h4>Bindings</h4>
+      <div class="row"><span class="key" id="kdash">&mdash;</span>
+        <span class="lbl">dash</span><span class="val cnt" id="ndash">0</span></div>
+      <div class="row"><span class="key" id="kfps">&mdash;</span>
+        <span class="lbl">fps cap</span><span class="val" id="vfps">&mdash;</span></div>
+    </div>
+
+    <div class="card">
+      <h4>Gates</h4>
+      <div class="row"><i class="dot" id="dhp"></i><span class="lbl">hp gate</span>
+        <span class="val" id="vhp">&mdash;</span></div>
+      <div class="row"><i class="dot" id="dsnd"></i><span class="lbl">sound</span>
+        <span class="bar" id="bsnd"><i></i></span>
+        <span class="val" id="vsnd">&mdash;</span></div>
+      <div class="row"><i class="dot" id="dcd"></i><span class="lbl">cooldown</span>
+        <span class="bar" id="bcd"><i></i></span></div>
+    </div>
+
+    <div class="card">
+      <h4>Character</h4>
+      <div class="row"><i class="dot" id="dchr"></i><span class="lbl">humanoid</span>
+        <span class="val" id="vchr">&mdash;</span></div>
+      <div class="row"><span class="lbl">health</span>
+        <span class="bar" id="bhp"><i></i></span>
+        <span class="val" id="vhpv">&mdash;</span></div>
+    </div>
+  </div>
+
+  <div class="pane" id="p-set">
+    <div class="card">
+      <h4>Dash</h4>
+      <div class="set"><span class="lbl">Direction</span>
+        <select data-k="dash_dir">
+          <option value="0">back</option><option value="1">forward</option>
+          <option value="2">left</option><option value="3">right</option>
+          <option value="4">up</option><option value="5">down</option>
+        </select></div>
+      <div class="set"><span class="lbl">Power at 0% HP
+        <span class="hint">velocity written when nearly dead</span></span>
+        <input type="number" step="1" data-k="power_min"></div>
+      <div class="set"><span class="lbl">Power at full HP</span>
+        <input type="number" step="1" data-k="power_max"></div>
+      <div class="set"><span class="lbl">Hold
+        <span class="hint">seconds the velocity is held</span></span>
+        <input type="number" step="0.01" data-k="hold_secs"></div>
+      <div class="set"><span class="lbl">Rewrite rate
+        <span class="hint">Hz; the engine overwrites velocity every frame</span></span>
+        <input type="number" step="50" data-k="hold_hz"></div>
+      <div class="set"><span class="lbl">Cooldown
+        <span class="hint">seconds; 0 leaves the gates as the only limit</span></span>
+        <input type="number" step="0.1" data-k="cooldown"></div>
+    </div>
+
+    <div class="card">
+      <h4>Jump</h4>
+      <div class="set"><span class="lbl">Jump first</span>
+        <i class="sw" data-k="do_jump"></i></div>
+      <div class="set"><span class="lbl">Delay after jump
+        <span class="hint">seconds to leave the ground before dashing</span></span>
+        <input type="number" step="0.01" data-k="jump_delay"></div>
+    </div>
+
+    <div class="card">
+      <h4>Gates</h4>
+      <div class="set"><span class="lbl">Sound gate
+        <span class="hint">a window opened by the sound, not while it plays</span></span>
+        <i class="sw" data-k="use_sound_gate"></i></div>
+      <div class="set"><span class="lbl">Sound id</span>
+        <input type="text" class="wide" data-k="gate_sound"></div>
+      <div class="set"><span class="lbl">Window
+        <span class="hint">seconds the gate stays open once heard</span></span>
+        <input type="number" step="0.05" data-k="gate_secs"></div>
+      <div class="set"><span class="lbl">HP gate
+        <span class="hint">refuse while recently damaged</span></span>
+        <i class="sw" data-k="use_hp_gate"></i></div>
+      <div class="set"><span class="lbl">Shut for</span>
+        <input type="number" step="0.05" data-k="hp_gate_secs"></div>
+    </div>
+
+    <div class="card">
+      <h4>FPS toggle</h4>
+      <div class="set"><span class="lbl">Low</span>
+        <input type="number" step="1" data-k="fps_low"></div>
+      <div class="set"><span class="lbl">High</span>
+        <input type="number" step="1" data-k="fps_high"></div>
+    </div>
+
+    <div id="setfoot">
+      <button id="reset">Reset to defaults</button>
+      <span id="saved">saved</span>
+    </div>
+  </div>
+
+</div>
+
+<div id="status">waiting</div>
+
+<script src="ui.js"></script>
+</body></html>

@@ -1,0 +1,111 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Aim assist</title>
+<link rel="stylesheet" href="ui.css">
+
+<div id="hd">
+  <div id="ttlrow">
+    <span id="ttl">Aim assist</span>
+    <span id="arm" class="off">disarmed</span>
+  </div>
+  <div id="sub">not running</div>
+</div>
+
+<div id="body">
+
+  <div class="grp">Target priority</div>
+
+  <div class="row">
+    <label>Pick by
+      <span class="hint">What "best target" means, for acquiring and for
+        handing off.</span></label>
+    <select data-k="priority">
+      <option value="0">Nearest crosshair</option>
+      <option value="1">Nearest in world</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label>Pick radius
+      <span class="hint">Pixels from the crosshair a target must be within to
+        count at all. 0 = no limit. Set this with "nearest in world" for
+        closest-but-only-near-my-aim.</span></label>
+    <input type="range" data-k="pickRadius" min="0" max="600" step="10">
+    <input type="number" data-k="pickRadius" min="0" max="2000" step="10">
+  </div>
+
+  <div class="grp">Aim</div>
+
+  <div class="row">
+    <label>Smoothing
+      <span class="hint">Fraction of the remaining error corrected each tick.</span></label>
+    <input type="range" data-k="smoothing" min="0.01" max="1" step="0.01">
+    <input type="number" data-k="smoothing" min="0.01" max="1" step="0.01">
+  </div>
+
+  <div class="row">
+    <label>Lead
+      <span class="hint">Seconds of the target's own velocity to aim ahead by.</span></label>
+    <input type="range" data-k="lead" min="0" max="0.3" step="0.005">
+    <input type="number" data-k="lead" min="0" max="0.5" step="0.005">
+  </div>
+
+  <div class="row">
+    <label>Max distance
+      <span class="hint">Studs. Ignore anyone further away.</span></label>
+    <input type="range" data-k="maxDist" min="50" max="2000" step="10">
+    <input type="number" data-k="maxDist" min="10" max="5000" step="10">
+  </div>
+
+  <div class="grp">Target stickiness</div>
+
+  <div class="row">
+    <label>Switch threshold
+      <span class="hint">A challenger must be this fraction of the current
+        target's crosshair distance. Lower is stickier.</span></label>
+    <input type="range" data-k="switchFrac" min="0.1" max="1" step="0.05">
+    <input type="number" data-k="switchFrac" min="0.1" max="1" step="0.05">
+  </div>
+
+  <div class="row">
+    <label>Switch dwell
+      <span class="hint">Milliseconds it must hold the lead before the switch
+        commits. Higher is stickier.</span></label>
+    <input type="range" data-k="switchDwell" min="0" max="300" step="5">
+    <input type="number" data-k="switchDwell" min="0" max="2000" step="5">
+  </div>
+
+  <div class="grp">Rates</div>
+
+  <div class="row">
+    <label>Aim rate
+      <span class="hint">Hz while the aim key is held. Smoothing is per tick,
+        so changing this changes the feel.</span></label>
+    <input type="range" data-k="aimHz" min="30" max="500" step="1">
+    <input type="number" data-k="aimHz" min="30" max="1000" step="1">
+  </div>
+
+  <div class="row">
+    <label>ESP rate
+      <span class="hint">Hz while idle, drawing boxes only.</span></label>
+    <input type="range" data-k="espHz" min="10" max="240" step="1">
+    <input type="number" data-k="espHz" min="10" max="240" step="1">
+  </div>
+
+  <div class="grp">Targeting</div>
+
+  <div class="row">
+    <label>Skip teammates
+      <span class="hint">Still drawn, never aimed at. Ignored in games with no
+        teams, or everyone would be a friend.</span></label>
+    <i class="sw" data-k="teamCheck"></i>
+  </div>
+
+</div>
+
+<div id="ft">
+  <span id="status">&nbsp;</span>
+  <button id="reset">Reset</button>
+</div>
+
+<script src="ui.js"></script>

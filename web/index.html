@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eclipse</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="ground">
+
+<div class="window">
+
+  <div class="titlebar">
+    <div class="brand">
+      <span class="monogram" aria-hidden="true"></span>
+      <span class="wordmark">Eclipse</span>
+    </div>
+    <!-- Edit sits here rather than beside the wordmark so it lands over the
+         EDITOR, which is what it acts on -- next to the brand it was over the
+         sidebar, pointing at the one pane it has nothing to do with. -->
+    <div class="cmdk-group">
+      <!-- GEAR MOVED OUT, to .tb-right. It sat here because .cmdk centres with
+           margin:0 auto and a bare sibling would have shoved it off-centre --
+           a layout workaround deciding where the least-used control in the app
+           lived. .cmdk-group is absolutely centred now, so the sides no longer
+           have to balance and each control can sit where it belongs. -->
+      <!-- Repurposed from the kit's "run a script" field: this searches the
+           offset table, which is the thing you actually look up constantly. -->
+      <div class="cmdk" id="cmdk" tabindex="0" role="button">
+        <span class="lead">⌘</span>
+        <span>Search offsets…</span>
+        <span class="kbd">⌘K</span>
+      </div>
+      <!-- Notepad-style Edit menu. Reuses the sidebar's context-menu component
+           rather than being a menu bar of its own. -->
+      <button class="menu-btn" id="btnEdit">Edit</button>
+    </div>
+    <!-- Settings and the window controls. Arm was briefly a state chip here
+         and went back to the bottom bar beside Run and Stop -- it reads better
+         next to the other things you press while a snippet is in front of you,
+         and the .armed class on the button plus the DataModel readout already
+         make the state legible down there. -->
+    <div class="tb-right">
+      <button class="cmdk-gear" id="btnSettings" title="Settings (Ctrl+,)" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.1"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    <!-- Windows-style controls rather than the kit's macOS traffic lights. -->
+    <div class="wincontrols">
+      <button class="wc" id="winMin" title="Minimize" aria-label="Minimize">
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0 5h10"/></svg>
+      </button>
+      <button class="wc" id="winZoom" title="Maximize" aria-label="Maximize">
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="9" height="9"/></svg>
+      </button>
+      <button class="wc close" id="winClose" title="Close" aria-label="Close">
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><path d="M0 0l10 10M10 0L0 10"/></svg>
+      </button>
+    </div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <aside class="sidebar">
+      <div class="side-scroll">
+        <div class="side-label">Snippets <span class="add" id="btnNew" title="New snippet">+</span></div>
+        <!-- Where you are, when the tree is showing one folder instead of all
+             of them. Hidden until it has something to say. -->
+        <div class="crumbs" id="crumbs" hidden></div>
+        <!-- tabindex so the list can hold keyboard focus: the arrow/F2/Delete
+             keys are bound to THIS element, not the document, or they would
+             fire while you were typing in the editor. -->
+        <div class="scripts" id="snippetList" tabindex="0"></div>
+      </div>
+      <!-- The kit's identity footer has no backing here (no accounts), so the
+           pinned strip carries the attach readout instead. -->
+      <!-- Two rows. Adding Launch to the identity line meant four things
+           competing for a 208px sidebar, which truncated the attach readout
+           and squashed the status dot. The button gets its own full-width row
+           above; the identity line is unchanged from before it existed. -->
+      <div class="side-foot">
+        <div class="foot-tools">
+          <!-- Deleted snippets are moved to snippets\.trash, not unlinked, and
+               nothing said so: a bare bin icon reads as "delete", not "undo".
+               The label is what tells you the work is still there, and the
+               count is what stops the folder filling up invisibly. -->
+          <button class="foot-trash" id="btnTrash" title="Restore deleted snippets">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>
+            </svg>
+            <span class="lbl">Recover deleted</span>
+            <span class="n" id="trashN"></span>
+          </button>
+        </div>
+
+        <div class="foot-id">
+          <span class="pulse-dot" id="pulse"></span>
+          <div class="who" id="footState">detached</div>
+          <!-- Only shown while detached, which is also what makes it fit here:
+               "detached" is short, and by the time the readout grows to
+               "name · pid 12252" this button is already gone. The watcher
+               attaches on its own, so this exists purely to save alt-tabbing
+               out to start a client. -->
+          <button class="foot-launch" id="btnLaunch" title="Start Roblox" hidden>Launch</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Drag to resize the sidebar. Vertical twin of #consoleGrip; a real
+         layout column rather than an overlay on the sidebar's right border. -->
+    <div class="vsplit" id="sidebarGrip" title="Drag to resize · double-click to reset"></div>
+
+    <div class="main">
+
+      <div class="tabstrip" id="tabstrip">
+        <div class="spacer"></div>
+      </div>
+
+      <div class="editor-wrap">
+        <!-- Find/replace. Floats over the code rather than pushing it down,
+             so the line you were looking at does not move when it opens.
+             .editor-wrap is already position:relative for the kit's own
+             layout, which is what this anchors to. -->
+        <div class="findbar" id="findBar" hidden>
+          <div class="find-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>
+            <input type="text" id="findInput" placeholder="Find" autocomplete="off" spellcheck="false">
+            <span class="find-count" id="findCount"></span>
+            <button class="find-btn" id="findPrev" title="Previous (Shift+F3)">&#8593;</button>
+            <button class="find-btn" id="findNext" title="Next (F3)">&#8595;</button>
+            <button class="find-btn find-toggle" id="findCase" title="Match case">Aa</button>
+            <button class="find-btn find-toggle" id="findRe" title="Regular expression">.*</button>
+            <button class="find-btn" id="findClose" title="Close (Esc)">&#10005;</button>
+          </div>
+          <div class="find-row find-replace" id="findReplaceRow" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round"><path d="M4 10a8 8 0 0 1 13.7-5.7L20 6"/><path d="M20 3v3.5h-3.5"/></svg>
+            <input type="text" id="replInput" placeholder="Replace" autocomplete="off" spellcheck="false">
+            <button class="find-btn wide" id="replOne">Replace</button>
+            <button class="find-btn wide" id="replAll">All</button>
+          </div>
+        </div>
+        <div class="editor">
+          <div class="gutter" id="gutter"></div>
+          <div class="code-stack">
+            <div class="code" id="codeHi"></div>
+            <textarea class="code-input" id="codeInput" spellcheck="false"
+                      autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+          </div>
+        </div>
+
+        <!-- Shown only when no file is open AND the buffer is empty. Not a
+             textarea placeholder: the input sits underneath a syntax-highlight
+             layer, so a native placeholder would render behind it. It is
+             pointer-events:none, because an empty buffer is still a usable one
+             -- pasting code in and pressing Run without ever saving is a
+             supported way to work here, and this must not intercept the click
+             that focuses the editor. -->
+        <div class="editor-empty" id="editorEmpty" hidden>
+          <div class="ee-title">No file open</div>
+          <div class="ee-sub">Pick a snippet from the sidebar, or start typing and press Run.</div>
+        </div>
+        <!-- Minimap. A canvas rather than the kit's div-per-line .mline bars:
+             those are one DOM node per line rebuilt on every keystroke, which
+             is fine at 200 lines and not at 5000. The viewport box is a
+             separate div so scrolling moves it without redrawing the map. -->
+        <div class="minimap" id="minimap" hidden>
+          <canvas id="minimapCanvas"></canvas>
+          <div class="mm-view" id="minimapView"></div>
+        </div>
+      </div>
+
+      <!-- Drag to resize the console. A real layout row rather than an overlay
+           on the console's top border: the head below is click-to-collapse, and
+           a grip floating over it would steal clicks from the top of it. -->
+      <div class="hsplit" id="consoleGrip" title="Drag to resize · double-click to reset"></div>
+      <div class="console" id="console">
+        <div class="console-head" id="consoleHead">
+          <div class="console-title">Console <span class="n" id="logCount">0</span></div>
+          <div class="filters">
+            <button class="chip on" data-lvl="info">info</button>
+            <button class="chip on" data-lvl="ok">ok</button>
+            <button class="chip on" data-lvl="warn">warn</button>
+            <button class="chip on" data-lvl="err">err</button>
+          </div>
+          <button class="link-btn" id="btnClear">Clear</button>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div class="bottombar">
+        <button class="btn btn-primary" id="btnRun">Run <span class="kbd">F5</span></button>
+        <!-- Run and Stop are SEPARATE, not one button that changes meaning.
+             With several snippets able to run at once, one control cannot
+             express both "run this" and "stop which?" -- and a button whose
+             label depends on state is the one you misclick. -->
+        <button class="btn" id="btnStop" disabled>Stop</button>
+        <button class="btn" id="btnArm" title="Writes are logged and never performed. Press to allow them.">Arm</button>
+        <div class="sep"></div>
+        <button class="btn" id="btnAttach" title="Attach to the running client.">Attach</button>
+        <button class="btn" id="btnSave">Save <span class="kbd">⌘S</span></button>
+
+        <div class="status-cluster">
+          <div class="stat s-pid"><span class="k">pid</span><span class="v" id="stPid">—</span></div>
+          <div class="stat s-base"><span class="k">base</span><span class="v" id="stBase">—</span></div>
+          <div class="stat s-off"><span class="k">offsets</span><span class="v" id="stOff">0</span></div>
+          <div class="attached" id="stDm">no DataModel</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Resize grips. The window has no non-client frame, and WebView2 covers
+       every client pixel with its own child window, so Windows never gets to
+       hit-test the edges. These strips take the drag and hand it to the host,
+       exactly as the titlebar does for moving. -->
+  <div class="resizers" id="resizers">
+    <div data-edge="TL"></div> <div data-edge="T"></div> <div data-edge="TR"></div>
+  </div>
+
+  <div class="ctx" id="ctxMenu" role="menu"></div>
+
+  <!-- Rename / new-name prompt. Reuses the palette shell so it needs no new
+       chrome; the placeholder carries the question. #promptNote carries
+       validation ("already exists") inline -- the log is behind the scrim and
+       blurred while this is open, so a message posted there is unreadable at
+       exactly the moment it matters. -->
+  <div class="palette-overlay prompt-overlay" id="promptOverlay">
+    <div class="palette" style="width:420px">
+      <div class="palette-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        <input type="text" id="promptInput" autocomplete="off" spellcheck="false">
+        <span class="kbd">⏎</span>
+      </div>
+      <div class="prompt-note" id="promptNote" hidden></div>
+    </div>
+  </div>
+
+  <!-- Settings. Its own overlay rather than the .palette shell: that one is
+       540px and top-anchored for a growing result list, and this is a fixed
+       two-pane layout that wants the height. Rows are built by app.js from
+       the SETTINGS table -- there is no markup per setting. -->
+  <!-- Export picker. Its own small dialog rather than three checkboxes wedged
+       into the settings footer: the counts are the useful part and they need
+       room to be read. -->
+  <!-- Trash. Deleting moves a snippet to snippets\.trash rather than unlinking
+       it, which is only actually a safety net if there is a way back. -->
+  <!-- The run/stop chooser. Same shell as the trash and export dialogs, and
+       centred like them, so a decision about runs looks like every other
+       decision in the app rather than a menu hanging off a button. -->
+  <div class="palette-overlay export-overlay" id="runOverlay">
+    <div class="palette export-box" role="dialog" aria-label="Runs">
+      <div class="palette-input"><span class="set-title" id="runDlgTitle"></span></div>
+      <div class="export-listhead">
+        <span id="runDlgSub"></span>
+        <button class="link-btn" id="runDlgAll" hidden>Select all</button>
+      </div>
+      <div class="export-list" id="runDlgList"></div>
+      <div class="settings-foot" id="runDlgFoot"></div>
+    </div>
+  </div>
+
+  <div class="palette-overlay export-overlay" id="trashOverlay">
+    <div class="palette export-box" role="dialog" aria-label="Trash">
+      <div class="palette-input"><span class="set-title">Trash</span></div>
+      <div class="export-listhead">
+        <span id="trashCount"></span>
+        <button class="link-btn danger" id="trashEmpty">Empty trash</button>
+      </div>
+      <div class="export-list" id="trashList"></div>
+      <div class="settings-foot">
+        <span class="export-hint" id="trashHint"></span>
+        <button class="btn" id="trashClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="palette-overlay export-overlay" id="exportOverlay">
+    <div class="palette export-box" role="dialog" aria-label="Export bundle">
+      <div class="palette-input"><span class="set-title">Export bundle</span></div>
+      <div class="export-body">
+        <label class="export-row">
+          <input type="checkbox" id="expSettings" checked>
+          <span class="export-name">Settings</span>
+          <span class="export-note" id="expSettingsN"></span>
+        </label>
+        <label class="export-row">
+          <input type="checkbox" id="expOffsets" checked>
+          <span class="export-name">Offsets conf</span>
+          <span class="export-note" id="expOffsetsN"></span>
+        </label>
+      </div>
+      <div class="export-listhead">
+        <span>Snippets</span>
+        <button class="link-btn" id="expAll">all</button>
+        <button class="link-btn" id="expNone">none</button>
+      </div>
+      <!-- Built by app.js from the same tree the sidebar shows, so a project
+           reads as a project here too. -->
+      <div class="export-list" id="expList"></div>
+      <div class="settings-foot">
+        <span class="export-hint" id="expSummary"></span>
+        <button class="btn" id="expCancel">Cancel</button>
+        <button class="btn btn-primary" id="expGo">Export…</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="palette-overlay settings-overlay" id="settingsOverlay">
+    <div class="palette settings-box" role="dialog" aria-label="Settings">
+      <!-- .palette-input is the kit's search row: it already lays out the
+           icon, the field and a trailing control, so this needs no styling
+           of its own. -->
+      <div class="palette-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>
+        <input type="text" id="setSearch" autocomplete="off" spellcheck="false"
+               placeholder="Search settings">
+        <button class="icon-btn" id="setClose" title="Close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="settings-body">
+        <!-- The kit's .nav, same component the sidebar's primary nav uses. -->
+        <div class="settings-cats nav" id="setCats"></div>
+        <div class="settings-list" id="setList"></div>
+      </div>
+      <div class="settings-foot">
+        <span id="setCount"></span>
+        <button class="btn" id="setImport">Import…</button>
+        <button class="btn" id="setExport">Export…</button>
+        <button class="btn" id="setReset">Reset all</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="palette-overlay" id="paletteOverlay">
+    <div class="palette">
+      <!-- .palette-input is the CONTAINER; the field goes inside it, which is
+           what makes `.palette-input input { background: transparent }` apply. -->
+      <div class="palette-input">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="paletteInput" placeholder="Search offsets…" autocomplete="off" spellcheck="false">
+        <span class="kbd">esc</span>
+      </div>
+      <div class="palette-list" id="paletteList"></div>
+    </div>
+  </div>
+
+  <!-- Multi-instance picker. Appears when 2+ Roblox clients are detected on
+       attach, and again from the status bar dropdown on demand. Shape borrows
+       from .palette-overlay so it inherits the kit's dim + centring styles. -->
+  <div class="palette-overlay" id="candOverlay">
+    <div class="palette" style="width:520px">
+      <div class="cand-head">Roblox — pick a client</div>
+      <div class="palette-list" id="candList"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eclipse HUD</title>
+<script>
+  /* ?c=1 is the host saying this page is COMPOSITION-hosted: the window has
+     per-pixel alpha, so the page draws its own shape (transparent background,
+     anti-aliased CSS corners, the fold animation) and posts messages through
+     chrome.webview. Absent under the windowed fallback, where a 1-bit window
+     region draws the shape and the page must stay opaque. A query flag rather
+     than an injected script because it cannot race document scripts. */
+  if (location.search.indexOf("c=1") >= 0)
+    document.documentElement.className = "composited";
+</script>
+<!-- The kit, so the panel is the same object as the app rather than a lookalike.
+     A file:// page, so a plain relative link works. -->
+<link rel="stylesheet" href="tokens.css">
+<!-- The kit's components too, so the snippet list IS the sidebar's rows
+     (.script-row / .script-ico / .group-ico) rather than a lookalike of
+     them. app.css is deliberately NOT linked: it lays out the console's
+     whole window. The handful of group-head rules that live there are
+     mirrored below. -->
+<link rel="stylesheet" href="components.css">
+<style>
+  /* Game-SHAPED, Eclipse-styled: corner-anchored, compact, quiet until looked
+     at. Deliberately not imitating Roblox's own chrome -- you should never have
+     to wonder whether you are looking at the game or at the tool. */
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    /* The page is wider and taller than the window while collapsed; this is
+       what clips the overhang instead of scrolling to it. */
+    position: relative;
+    /* OPAQUE, and the window is rounded by DWM rather than by border-radius
+       here. A transparent page lets WebView2's own white background through
+       wherever CSS rounded a corner. */
+    background: var(--bg-1);
+    color: var(--fg);
+    font: 12px/1.45 "Segoe UI", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none;
+    cursor: default;
+  }
+  /* FIXED SIZE, ANCHORED RIGHT AND CENTRED. The window never resizes -- both
+     hosting modes keep it at 360x460 forever -- so nothing here ever needs a
+     relayout: collapsing only changes what is visible (the region in the
+     fallback, CSS shapes when composited). The fixed pixel size also pins the
+     badge to the exact rectangle the host's hit region and region math use,
+     which percentages would not survive on a scaled monitor. */
+  #root {
+    position: absolute; right: 0; top: 50%; margin-top: -230px;
+    width: 360px; height: 460px;
+    display: flex;
+  }
+  /* The two wrappers exist for the composited open/close (see the bottom of
+     this sheet). In the windowed fallback they generate no boxes at all, so
+     #panel and #tab stay direct flex items of #root, exactly as before. */
+  #shape, #inner { display: contents; }
+
+  /* The tab, which IS the badge when collapsed. Last in the row, so it holds
+     the window's right edge -- the edge both window sizes share. Collapsing
+     shrinks the window to 44 x 66 around it, so it does not move, does not
+     cross-fade into anything, and cannot drift out of step with a second
+     element pretending to be it. */
+  #tab {
+    flex: 0 0 44px;
+    /* Base rules serve the windowed fallback, where the badge's corners are
+       drawn by the 1-bit REGION: keep the fill flat to its edges. When
+       composited, the rules at the bottom reshape this element into the
+       badge itself. */
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 7px;
+    background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+    border-left: 1px solid var(--line);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+  }
+  #tab:hover { background: linear-gradient(180deg, var(--bg-3), var(--bg-2)); }
+  .monogram {
+    width: 20px; height: 20px; border-radius: 6px;
+    background: radial-gradient(circle at 32% 30%, #1a1a20 0 44%, var(--accent) 46%);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+  }
+  /* A running snippet shows on the tab too, so a collapsed panel still says
+     that something is going. */
+  #tabdot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); opacity: 0; transition: opacity .15s;
+  }
+  #tabdot.on { opacity: 1; }
+  #chev { color: var(--fg-dim); font-size: 11px; }
+
+  #panel {
+    flex: 1; min-width: 0; display: flex; flex-direction: column;
+    background: var(--bg-1);
+    /* The animation lives entirely here. The WINDOW never resizes -- it is
+       clipped to the badge by a region instead -- so this is a plain
+       compositor transform rather than a per-frame relayout, and it runs
+       smoothly for free. Sliding toward the badge and fading is what makes it
+       read as folding into it rather than merely disappearing. */
+    transform-origin: right center;
+    /* Fallback only (composited overrides this off): the host learns the end
+       of the close from transitionend on the OPACITY in this mode. */
+    transition: opacity .2s var(--ease), transform .2s var(--ease);
+  }
+  /* The motion lives HERE, and only here. The window cannot animate its own
+     size without WebView2 relayouting a frame behind it, so all movement is
+     the page's -- which the compositor runs on its own clock, at whatever the
+     display does, for free. Sliding toward the badge and shrinking slightly is
+     what makes it read as folding into it rather than blinking out. */
+  #panel.hidden {
+    opacity: 0;
+    transform: translateX(28px) scaleX(.88);
+    pointer-events: none;
+  }
+
+
+  header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-bottom: 1px solid var(--line);
+    color: var(--fg-mut); font-size: 11px;
+  }
+  header .name { color: var(--fg); font-weight: 600; }
+  /* The place sits quieter than the account and gives up its space first:
+     a long game title must not push the arm pill off the row. */
+  #place { color: var(--fg-faint); min-width: 0;
+           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Health. Colour carries the reading, so it is legible at a glance
+     without parsing the number -- and it sits left of the arm pill, which
+     keeps its margin-left:auto and so stays pinned right. */
+  .hp {
+    display: flex; align-items: center; flex: none;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px; color: var(--ok);
+  }
+  /* A DRAWN dot rather than a "·" glyph. Where that character sits on the line
+     is the font's business -- in Segoe UI it rides low and small beside 12px
+     text, which reads as misaligned rather than as a separator. A circle is
+     centred by the flex row and looks the same everywhere.
+     It belongs to the health, so it disappears with it: a stranded dot after
+     the name would look like something failed to load. */
+  .hp::before {
+    content: ""; flex: none;
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--fg-dim);
+    margin: 0 7px 0 3px;
+  }
+  .hp.warn { color: var(--warn); }
+  .hp.err  { color: var(--err); }
+  /* BEATS THE display:flex ABOVE. The hidden attribute works through the UA
+     sheet's [hidden]{display:none}, which ANY author display rule overrides --
+     so el.hidden = true set the attribute and changed nothing, and the chip sat
+     there showing the health of the game you had just left. The host was right
+     the whole time: it logged ok=0 within 250ms of leaving, twice, while the
+     panel kept rendering the last number. Same trap as .view[hidden] below and
+     .crumbs[hidden] in app.css. */
+  .hp[hidden] { display: none; }
+  /* flex:none + nowrap are what actually implement the "#place gives up its
+     space first" rule above. Without them flex shrinks EVERY shrinkable item
+     in proportion to its base size, so a long game title squeezed the pill
+     too -- and with no nowrap "dry-run" wrapped to two lines inside a 999px
+     radius and rendered as a circle. min-width:0 on #place only makes the
+     place WILLING to shrink; it does not make the pill refuse to. */
+  .pill {
+    flex: none; white-space: nowrap;
+    margin-left: auto; padding: 2px 7px; border-radius: 999px;
+    border: 1px solid var(--line-strong); background: var(--bg-3);
+    /* font BEFORE font-size: it is a <button> now, so the shorthand is what
+       drops the UA's own family and size, and it would wipe the size if it
+       came after. */
+    font: inherit;
+    color: var(--fg-dim); font-size: 10px; letter-spacing: .02em;
+    cursor: pointer;
+    transition: border-color .12s ease, background .12s ease, color .12s ease;
+  }
+  .pill:hover { border-color: var(--fg-dim); color: var(--fg); }
+  .pill.armed { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+  .pill.armed:hover { border-color: var(--accent); }
+
+  /* The run/stop question, when a click would start a SECOND snippet. Same
+     three answers the console's dialog gives, in the panel's own idiom: it is
+     click-only (no keyboard reaches this window), so every answer is a button
+     and Cancel is one of them rather than an Escape nobody can press. */
+  #ask {
+    position: absolute; inset: 0; z-index: 60;
+    display: none; flex-direction: column; justify-content: center;
+    padding: 0 14px; gap: 8px;
+    background: rgba(8,9,12,0.82); backdrop-filter: blur(2px);
+  }
+  #ask.on { display: flex; }
+  #ask .q { color: var(--fg); font-size: 12px; }
+  #ask .who { color: var(--fg-faint); font-size: 11px; margin-top: -4px; }
+  #ask .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  #ask button { flex: 1 1 auto; }
+
+  /* A live row in the tree. The panel lists what you can run, so with several
+     running at once it has to say WHICH -- the summary line above can only fit
+     one name. Colour on the icon rather than the row background: the row's
+     background is already the hover/press affordance and two meanings on one
+     property is how you stop being able to read either. */
+  .script-row.running .script-ico,
+  .group-head.running .group-ico { color: var(--accent); }
+  .script-row.running .script-name,
+  .group-head.running .group-name { color: var(--fg); }
+  /* Asked to stop and not yet gone. Amber, and never mistaken for running. */
+  .script-row.stopping .script-ico,
+  .group-head.stopping .group-ico { color: #d9a441; }
+
+  /* What is running. Its own row: the header is already carrying pid and arm
+     state, and a third thing in there turns a glance into reading. */
+  #runrow {
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 10px; border-bottom: 1px solid var(--line);
+    color: var(--fg-dim); font-size: 11px;
+  }
+  #runrow .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--fg-faint);
+    flex: 0 0 auto;
+  }
+  #runrow.on .dot { background: var(--accent); }
+  /* Building is its own state: compiling a project is seconds long, and a
+     dot that already says "running" through it is claiming something that
+     has not happened. Amber for work in progress, accent once the snippet
+     is actually executing -- the same two-colour reading as the arm pill.
+     .building wins over .on because a run is both while it compiles. */
+  #runrow.building .dot,
+  #tabdot.building { background: var(--warn); }
+  #runrow.on #runname { color: var(--fg); }
+  #runname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .views { display: flex; gap: 4px; padding: 6px 10px 0; }
+  .views button { flex: 1; font-size: 11px; }
+  .view { flex: 1; overflow-y: auto; padding: 6px 10px; min-height: 0; }
+  .view[hidden] { display: none; }
+
+  #log { font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; }
+  #log div { padding: 1px 0; white-space: pre-wrap; word-break: break-word; color: var(--info); }
+  #log div.ok   { color: var(--ok-msg); }
+  #log div.warn { color: var(--warn-msg); }
+  #log div.err  { color: var(--err-msg); }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* Mirrored from app.css, which is not linked here. Same rules, so a change
+     to the sidebar's group header should be made in both. */
+  .group-head {
+    display: flex; align-items: center; gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    cursor: pointer; color: var(--fg-dim);
+    font-size: var(--fs-sm); letter-spacing: .02em; text-transform: uppercase;
+    user-select: none;
+  }
+  /* A GROUP HEADING HERE IS A LABEL, not a control. The panel only runs
+     things; there is nothing to fold away and no second click to spend. The
+     caret stays pointing down as a static mark that files below belong to it,
+     and the row takes no hover or pointer, so it never looks pressable. */
+  .group-head { cursor: default; }
+  .group-caret {
+    display: grid; place-items: center; width: 18px; height: 18px; flex: none;
+    transform: rotate(90deg);                 /* down, and it stays there */
+  }
+  .group-caret svg { width: 12px; height: 12px; }
+  .group-name { flex: 1 1 auto; min-width: 0;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* A project IS runnable, so unlike a group it reacts: accent name, hover
+     fill, and the same triangle the sidebar uses. */
+  .group-head.is-project { cursor: pointer; }
+  .group-head.is-project .group-name { color: var(--accent); }
+  .group-head.is-project:hover { background: var(--bg-hover); }
+
+  /* The run triangle. Fades in on hover rather than appearing, and holds its
+     space either way so nothing shifts sideways as it arrives. */
+  .run-ico {
+    margin-left: auto; flex: none;
+    width: 20px; height: 18px; display: grid; place-items: center;
+    border-radius: var(--r-sm);
+    color: var(--accent); font-size: 9px;
+    opacity: 0; transition: opacity var(--t-fast) var(--ease);
+  }
+  .script-row:hover .run-ico,
+  .group-head.is-project:hover .run-ico { opacity: 1; }
+
+  /* The panel is narrower than the sidebar, so the rows breathe a little less. */
+  #snips .script-row { padding: 4px 7px; }
+  #snips .script-ico { width: 20px; height: 20px; flex: 0 0 20px; }
+  #empty { color: var(--fg-faint); padding: 8px 0; }
+
+  footer { display: flex; gap: 6px; padding: 7px 10px; border-top: 1px solid var(--line); }
+  button {
+    flex: 1; padding: 5px 8px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--line-strong); background: var(--bg-3);
+    color: var(--fg-mut); font: inherit; font-size: 11px;
+  }
+  button:hover { background: var(--bg-hover); color: var(--fg); }
+  button.on  { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  /* Running: the SAME signal the app's Stop carries (.btn.armed there) --
+     red outline on transparent, using the kit's reserved --err. Not the
+     accent .on above: that means "armed" on the button beside it, and two
+     different meanings sharing one colour in one footer reads as a bug. */
+  button.running { color: var(--err); border-color: var(--err); background: transparent; }
+  button.running:hover { background: rgba(224,90,90,.14); color: var(--err); }
+  button.sel { background: var(--bg-active); color: var(--fg); }
+
+  /* ---- composition-hosted shaping (html.composited, set from ?c=1) --------
+     The window has per-pixel alpha here, so the page owns its silhouette:
+     everything not painted below IS the game.
+
+     ONE BOX MOVES AND NOTHING FADES. The first version animated three things
+     on their own timelines -- an inset ring on #root (full panel geometry
+     from frame one, only its alpha ramping), the panel's opacity (a
+     translucent ghost with the game showing through it), and a separate tab
+     morph -- and mid-open you saw a full-size translucent outline filling in,
+     three objects instead of one. Recorded so opacity is not re-reached for:
+     over a transparent window, fading a box means showing its whole rectangle
+     at partial strength, which is exactly the artifact.
+
+     What ships instead: #shape is the ONLY thing that animates -- one
+     rounded, rimmed, clipping box whose width/height run from badge (44x66)
+     to panel (360x460). Its border is drawn at its true edge every frame, and
+     the contents sit in #inner, a fixed 360x460 frame pinned so it never
+     moves in PAGE coordinates (right-anchored; top:50% of the shape minus a
+     constant, and the shape stays vertically centred, so the sum is
+     constant). The edge therefore sweeps across stationary, fully opaque
+     content: border, background and contents arrive together, emerging from
+     the badge.
+
+     Two constraints carried over. The host's window region is demoted to the
+     collapsed HIT rectangle -- 44x66, right edge, vertically centred -- and
+     DWM clips composited pixels to it 1-bit, so the collapsed shape must
+     paint strictly inside that rectangle (its rounded corners leave the
+     rect's corners transparent, which is what makes them anti-aliased). And
+     the close is reported to the host from transitionend on #shape's WIDTH,
+     so width and height share the one .2s clock. */
+  html.composited, html.composited body { background: transparent; }
+  /* The overlay window covers the CLIENT now, not just the panel, so the 12px
+     inset the host's placement used to provide moves into the page. Same
+     screen rectangle as ever: right edge 12 inside the game's, vertically
+     centred. */
+  html.composited #root { right: 12px; }
+
+  /* A docked snippet panel: an iframe with its own origin, anchored to a
+     corner by plain CSS so game-window moves and resizes cost nothing. No
+     chrome of any kind -- the snippet's page owns every pixel, exactly as its
+     old dedicated window did, including transparency down to the game. */
+  .dockpanel { position: absolute; overflow: hidden; z-index: 1; }
+  .dockpanel iframe {
+    width: 100%; height: 100%; border: 0; display: block;
+    background: transparent;
+  }
+  /* The panel's badge<->360x460 grow, exactly as signed off. App mode does
+     NOT run through this element any more -- it lives on #appstage below --
+     so these sizes are constants again and the panel animation cannot be
+     perturbed by anything the app does. */
+  html.composited #shape {
+    display: block;
+    position: absolute; right: 0;
+    top: 50%; transform: translateY(-50%);   /* %% of CURRENT height: stays
+                                                centred every frame of the
+                                                height transition */
+    width: 360px; height: 460px;
+    border-radius: 14px;                     /* the 14 the fallback region uses */
+    overflow: hidden;                        /* the clip that reveals #inner */
+    background: var(--bg-1);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    transition: width .2s var(--ease), height .2s var(--ease);
+  }
+  html.composited #root.collapsed #shape { width: 44px; height: 66px; }
+  /* COLLAPSED, THE BADGE PAINTS ITS OWN ROUNDING. The squared-badge bug
+     (user report 2026-08-21): while #fly's height transition restructures
+     the compositor's layer tree, Chromium sometimes drops #shape's rounded
+     overflow clip, and #tab's square gradient then filled the corners --
+     the badge went hard-edged while #fly, whose rounding is self-painted,
+     kept its radius. Measured: 28/120 stress samples square, WS_EX_LAYERED
+     clear in every one, so it is the page, not the host or the region. The
+     fix is structural, not a compositor hint: the gradient moves onto
+     #shape itself (a background follows border-radius with no clip
+     involved) and #tab goes paintless while collapsed, so a dropped clip
+     has nothing square left to reveal. #tab keeps its layout (border-left
+     goes transparent, not zero, so nothing shifts); #shape's inset ring
+     already draws the same 1px edge line. Re-measured after: 0/120. */
+  html.composited #root.collapsed #shape {
+    background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
+  }
+  html.composited #root.collapsed #shape:hover {
+    background: linear-gradient(180deg, var(--bg-3), var(--bg-2));
+  }
+  html.composited #root.collapsed #tab {
+    background: none;
+    border-left-color: transparent;
+  }
+  html.composited #inner {
+    display: flex;
+    position: absolute; right: 0;
+    /* -230 = -460/2, so shape_top + shape_h/2 stays constant and the content
+       never moves in page coords while the edge sweeps. */
+    top: 50%; margin-top: -230px;
+    width: 360px; height: 460px;
+  }
+
+  /* ---- app mode: the travel box, and ONLY the travel box ------------------
+     The app is the console's REAL WINDOW now (re-architected 2026-08-22, see
+     docs/overlay-plan.md) -- this page's whole part is #apptrav, a
+     content-free box (background, rim, radius) that runs home-badge -> the
+     window's rect on open and back on close, choreographed with the host so
+     the box always covers the swap (the window shows before the box drops,
+     hides only after the box is up). Content-free is the point twice over:
+     an empty leaf's box animates without relayouting anything else, and the
+     empty-box -> real-content pop happens under a fully composed window, not
+     mid-travel. The badge has a FIXED HOME on #root and is untouched by any
+     of this; the app's remembered position is the HOST's fact now.
+
+     No opacity anywhere, same as ever: the box is opaque and its outline is
+     hard against the game every frame. */
+  html.composited #appstage {
+    position: absolute; inset: 0; display: none;
+    /* Above the dock. The dock panel is appended to <body> AFTER this
+       element, and positioned boxes without a z-index paint in tree order --
+       so the dock drew over the travel box for the whole open animation
+       (screenshot, 2026-09-04). The box is the app's stand-in and the app
+       is above the dock, so the box must be too. */
+    z-index: 2;
+    /* The stage spans the WHOLE client, because the box travels anywhere in
+       it -- which means it also lies over the home badge. With the stage
+       taking clicks, every click on the badge landed on its empty area
+       instead of on #tab, and since the badge is the app's CLOSE control
+       there was then no way to close the app at all. The stage is
+       scaffolding; only the box that actually draws takes input. */
+    pointer-events: none;
+  }
+  html.composited #appstage.on { display: block; }
+  #apptrav {
+    pointer-events: auto;
+    /* The box is the badge growing, and on open it sits ON the badge under
+       the pointer -- without this the browser reported the default arrow for
+       the start of every open (hand -> arrow -> hand at the user's eyes,
+       probe-confirmed via the cursor HANDLE; visibility sampling alone never
+       saw it). Only ever displayed over our solid pieces: everywhere else the
+       overlay is click-through and the game's queue owns the cursor. */
+    cursor: pointer;
+    position: absolute;
+    background: var(--bg-1);
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    transition: left .2s var(--ease), top .2s var(--ease),
+                width .2s var(--ease), height .2s var(--ease);
+  }
+  /* Placement writes that must not animate (start-of-travel positioning) go
+     under this class, with a forced reflow before it comes off. */
+  #appstage.noanim #apptrav { transition: none; }
+  /* No fade: the shape's edge does all the revealing, and a half-opaque
+     panel over a transparent window is the ghost this section exists to
+     avoid. pointer-events comes from the base .hidden rule and stays. */
+  html.composited #panel,
+  html.composited #panel.hidden { opacity: 1; transform: none; transition: none; }
+
+  /* ---- the badge-target flyout (right-click the badge while collapsed) ----
+     ONE icon button that pops out BELOW the badge and shows the target a
+     click on it would switch the badge TO: panel selected -> the app glyph,
+     app selected -> the panel glyph. The icon on screen IS the alternative,
+     so no current-target highlight is needed.
+
+     Same visual language as everything else here: a box GROWS -- height from
+     0 with the badge-side edge fixed, contents in a fixed-size inner frame
+     anchored to that same edge so the moving edge sweeps across stationary
+     pixels -- and nothing fades (over a transparent window a fade shows the
+     whole rectangle at partial strength; recorded dead end). Detached by a
+     6px gap rather than flush: the badge's bottom edge is only straight for
+     16 of its 44px (14px corner radii), so any flush seam would show
+     transparent notches. Position is written by flyPlace() from the same
+     numbers flyRect() reports -- one source, so region and pixels cannot
+     drift. On a client too short to fit it below, it flips ABOVE (.up):
+     bottom-anchored so the growth runs upward out of the badge, the inner
+     frame bottom-anchored to match. Composited only: the flyout exists for
+     overlay mode, which the windowed fallback cannot host. */
+  #fly { display: none; }
+  html.composited #fly {
+    display: block;
+    position: absolute;        /* left + top (or bottom, .up) set by flyPlace() */
+    width: 44px; height: 0;
+    overflow: hidden;          /* the clip that reveals #flyin */
+    background: var(--bg-1);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    border-radius: 10px;
+    transition: height .2s var(--ease);
+  }
+  html.composited #fly.out { height: var(--fly-h, 40px); }
+  /* Instant dismissal writes (another animation is about to own the stage)
+     go under .noanim, committed by a forced reflow before it comes off. */
+  html.composited #fly.noanim { transition: none; }
+  #flyin {
+    position: absolute; left: 0; top: 0;
+    width: 44px;                 /* height written by flyPlace */
+    display: grid; place-items: center;
+    box-sizing: border-box;
+  }
+  #fly.up #flyin { top: auto; bottom: 0; }
+  /* A column of rows. Height comes from JS (flyRect) so the region and the
+     pixels agree on a box that changes with the number of rows shown -- one
+     source, the rule the whole overlay runs on. */
+  #flyin { display: flex; flex-direction: column; align-items: center;
+           justify-content: center; gap: 2px; }
+  /* Seamless rows: the kit gives every <button> a border and a fill, and
+     inside a box that already has its own rim that reads as boxes in a
+     box. The menu is one surface; the rows are just targets on it, so
+     they carry no chrome of their own and hover is the only affordance. */
+  #flyBtn, #flyQuit {
+    flex: none; width: 38px; height: 32px; padding: 0;
+    display: grid; place-items: center;
+    background: none; border: 0; border-radius: 8px;
+    color: var(--fg-mut);
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+  }
+  #flyBtn:hover { background: var(--bg-3); color: var(--fg); }
+  #flyBtn svg, #flyQuit svg { width: 16px; height: 16px; display: block; }
+  #flyQuit { color: var(--err); }
+  #flyQuit:hover { background: rgba(224,90,90,.14); color: var(--err); }
+</style>
+</head>
+<body>
+  <div id="root">
+    <!-- #shape is the one element the composited open/close animates: the
+         bordered, rounded, clipping box. #inner is the fixed content frame it
+         reveals. Both are display:contents in the fallback -- no boxes, no
+         effect on the flex row. -->
+    <div id="shape">
+    <div id="inner">
+    <div id="panel">
+      <header>
+        <span class="name">Eclipse</span>
+        <span id="pid">detached</span>
+        <span class="hp" id="hp" hidden></span>
+        <span id="place" hidden></span>
+        <!-- CLICKABLE, like the app's titlebar chip: the thing that shows
+             the gate is the thing that flips it. A <button> rather than a
+             span with a role, so Enter/Space and focus come free. The panel
+             header has no drag handler (the host glues the panel to the
+             client; the user never moves it), so a press here cannot be
+             eaten the way the console titlebar ate its own buttons. -->
+        <button class="pill" id="armpill">Dry-run</button>
+      </header>
+
+      <div id="runrow"><span class="dot"></span><span id="runname">nothing running</span></div>
+
+      <div class="views">
+        <button id="vLog"  class="sel">Log</button>
+        <button id="vSnip">Snippets</button>
+      </div>
+      <div class="view" id="log"><div id="empty">waiting for output…</div></div>
+      <div class="view" id="snips" hidden></div>
+
+      <div id="ask">
+        <div class="q" id="askQ"></div>
+        <div class="who" id="askWho"></div>
+        <div class="btns">
+          <button id="askRun">Run</button>
+          <button id="askOnly">Stop the others</button>
+          <button id="askNo">Cancel</button>
+        </div>
+      </div>
+
+      <footer>
+        <button id="arm">Arm</button>
+        <button id="stop">Stop</button>
+        <button id="clear">Clear logs</button>
+      </footer>
+    </div>
+
+    <!-- The tab IS the badge. It sits at the window's right edge, which is the
+         edge both window sizes share, so collapsing leaves it exactly where it
+         was and the panel simply grows out of it. One element, no cross-fade,
+         nothing that can drift out of step. -->
+    <div id="tab" title="Collapse">
+      <div class="monogram"></div>
+      <div id="tabdot"></div>
+      <span id="chev">&#9656;</span>
+    </div>
+    </div><!-- /inner -->
+    </div><!-- /shape -->
+  </div>
+
+  <!-- The badge-target flyout: right-click the collapsed badge in overlay
+       mode and this pops out below it (above, on a client too short). ONE
+       button whose icon is the target a click would switch the badge to --
+       flySync shows exactly one of the two glyphs. Not part of #root: the
+       badge never moves, and this is placed off the badge's fixed home by
+       flyPlace(). Icons: 16px, currentColor, and the difference between the
+       two is STRUCTURAL -- fill versus outline -- because they show one at
+       a time, where a matched pair's contrast is absent and a 1px interior
+       line stops carrying (first version, superseded). The app is an
+       OUTLINED window with a FILLED titlebar; the panel is a SOLID bar in
+       the badge's proportions. Deliberately not a chevron for the panel:
+       the badge itself already shows a chevron (#chev) meaning
+       expand/collapse, and the same shape one element away meaning
+       something else would collide. -->
+  <div id="fly">
+    <div id="flyin">
+      <button id="flyBtn">
+        <svg id="flyAppIco" viewBox="0 0 16 16">
+          <rect x="1.5" y="2.5" width="13" height="11" rx="2"
+                fill="none" stroke="currentColor" stroke-width="1"/>
+          <path d="M3.5 3.5 h9 a1 1 0 0 1 1 1 v1 h-11 v-1 a1 1 0 0 1 1-1 z"
+                fill="currentColor" stroke="none"/>
+        </svg>
+        <svg id="flyPanelIco" viewBox="0 0 16 16">
+          <rect x="1.5" y="2.5" width="13" height="11" rx="2"
+                fill="none" stroke="currentColor" stroke-width="1"/>
+          <path d="M10.5 3.5 h2 a1 1 0 0 1 1 1 v7 a1 1 0 0 1 -1 1 h-2 z"
+                fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+      <!-- Quit. Behind a right-click and then a specific button on purpose:
+           two deliberate steps for the one irreversible thing in here, where
+           the titlebar X used to do it in one misclick. Error-tinted so it
+           never reads as another neutral option beside the target glyphs. -->
+      <button id="flyQuit" title="Quit Eclipse">
+        <svg viewBox="0 0 16 16">
+          <path d="M4.5 4.5 l7 7 M11.5 4.5 l-7 7"
+                fill="none" stroke="currentColor" stroke-width="1.25"
+                stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- App mode's stage: the travelling box alone -- the app itself is the
+       console's real window, shown by the host. Not part of #root: the badge
+       keeps its fixed home while the box travels to the window's rect. -->
+  <div id="appstage">
+    <div id="apptrav"></div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+  var LOG_MAX = 300;
+  var log   = document.getElementById("log");
+  var snips = document.getElementById("snips");
+  var panel = document.getElementById("panel");
+  var root  = document.getElementById("root");
+  var empty = document.getElementById("empty");
+  var composited = document.documentElement.className === "composited";
+  /* hud=0: the overlay exists only for a docked snippet panel and the
+     console's own panel stays out of the page AND out of the hit rects. A
+     query flag for the initial state (deterministic, like ?c=1); runtime
+     flips arrive as HUDVIS. */
+  var hudVisible = location.search.indexOf("hud=0") < 0;
+  if (!hudVisible) root.style.display = "none";
+  var dock = null;   // { el, frame, src } while a snippet panel is docked
+
+  // The user's standing preference, from the ?om=1 query flag (deterministic,
+  // like ?c=1; runtime flips arrive as OVERLAYMODE). Set means the console
+  // LIVES here: the badge opens the app, and the badge must be visible even
+  // with the panel switched off, because it is then the only way in.
+  var overlayMode = location.search.indexOf("om=1") >= 0;
+  /* In overlay mode the overlay STARTS COLLAPSED -- the badge alone, no
+     animation, and the user opens the panel or the app deliberately (user
+     decision 2026-08-22). Elsewhere the panel opens as it always did. */
+  var expanded = !overlayMode;
+
+  // App mode: the console's REAL WINDOW over the game (re-architected
+  // 2026-08-22; the iframe design and its relayed drag are gone). This page
+  // owns the TRAVEL only -- #apptrav, an empty box running badge <-> window
+  // rect -- and moves ONLY on the host's say-so (APPOPEN/APPSHOWN/APPCLOSE/
+  // APPGO), so the two sides cannot disagree about whether the app is open.
+  // appOpen is the target state; appAnim true while a travel is in flight;
+  // appRect the page-px rect the host last named. pendingAtBadge survives
+  // for ONE job: a panel that is open when the app is asked for retracts
+  // first, and the travel starts from the badge when that retract finishes.
+  var appOpen = false;
+  var appAnim = false;
+  var appRect = null;
+  var pendingAtBadge = null;
+  // APPSHOWN that arrived while the open travel was still in flight (the
+  // host's open watchdog can beat the page's transitionend): the drop is
+  // deferred to the travel's end. See the APPSHOWN handler for why a drop
+  // at the wrong moment is a permanent wedge, not a glitch.
+  var shownPending = false;
+  var stage  = document.getElementById("appstage");
+  var trav   = document.getElementById("apptrav");
+
+  // The badge-target flyout (right-click the collapsed badge in overlay
+  // mode): which of app/panel a LEFT-click on the badge opens. Page-owned
+  // and page-persisted -- the host never needs the value, because badge
+  // clicks are already the page's to interpret (APP_ENTER vs the panel
+  // toggle), and Insert stays the app's toggle host-side regardless.
+  // FLYOUT:1/0 tells the host only that the flyout is OUT, so its LL hook
+  // can report a click landing outside the overlay (CLICKAWAY) -- the page
+  // cannot see those, they route to the game.
+  var fly     = document.getElementById("fly");
+  var flyOpen = false;   // target state
+  var flyAnim = false;   // a grow/retract in flight (keeps the rect reported)
+  // Resets to the console every launch, deliberately: the panel is the
+  // occasional view and the console is the one you mean by default, so
+  // a session that ended in panel mode should not decide the next one.
+  // The switch is one right-click away when it IS wanted.
+  var badgeTarget = "app";
+  var FLY_W = 44, FLY_ROW = 34, FLY_PAD = 6;   // row + the box's own padding
+  // How tall the menu is right now. Rows are state-dependent: with the app
+  // open only Quit applies (switching targets mid-app means nothing), so the
+  // box shrinks to one row rather than showing a dead control.
+  // ONE predicate for "the menu is Quit alone", because two of them drift:
+  // flySync hid the switch for an open PANEL while flyRows still counted two
+  // rows, so the box kept the second row's height as empty space and the
+  // panel's menu came out taller than the app's.
+  function flyQuitOnly() { return appOpen || expanded; }
+  function flyRows() { return flyQuitOnly() ? 1 : 2; }
+  function flyH() { return flyRows() * FLY_ROW + FLY_PAD; }
+  var FLY_GAP = 6;               // detached: the badge's bottom corners are
+                                 // rounded, so a flush seam would notch
+
+  function $(id) { return document.getElementById(id); }
+
+  if (!expanded) {
+    // The collapsed START (overlay mode): initial state, not setExpanded --
+    // nothing animates, nothing is sent; the first reportRects at the bottom
+    // reports the badge alone, which is what keeps it clickable (the region
+    // is 1-bit and clips the composited pixels to what is reported).
+    root.classList.add("collapsed");
+    panel.classList.add("hidden");
+    $("chev").innerHTML = "&#9666;";
+    $("tab").title = "Expand";
+  }
+
+  /* Two transports for one protocol: composition hosting has no wrapper and
+     no hud_send binding, so it posts the raw string through chrome.webview;
+     the windowed fallback keeps the binding. Same strings either way. */
+  function send(m) {
+    if (composited) {
+      if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage(m);
+    } else if (window.hud_send) {
+      window.hud_send(m);
+    }
+  }
+
+  // Browser affordances that read as bugs in a HUD. Capture phase so nothing
+  // downstream can let them through.
+  document.addEventListener("contextmenu", function (e) { e.preventDefault(); }, true);
+  document.addEventListener("wheel", function (e) { if (e.ctrlKey) e.preventDefault(); },
+                            { passive: false, capture: true });
+  document.addEventListener("auxclick", function (e) { if (e.button === 1) e.preventDefault(); }, true);
+  document.addEventListener("dragstart", function (e) { e.preventDefault(); }, true);
+
+  /* THE HIT-TEST REGION IS THE PAGE'S TO REPORT. The overlay window covers
+     the whole client, so the host clips it to the union of these rects --
+     everything outside them clicks through to the game, and DWM also clips
+     the composited PIXELS to them (1-bit, measured), which is why the
+     ordering rules below exist. Every rect comes from STATIC geometry (#root
+     never animates; only #shape inside it does; a dock panel is a fixed
+     box), so a report made at the START of an animation is valid for all of
+     it -- and MUST be: grow the region before growing into it, shrink it
+     only after transitionend. If you add a panel, add its rect here and call
+     reportRects() from whatever changes its layout; the host does not know
+     your geometry and by design will not guess it. Window px == CSS px (the
+     host pins rasterization to 1.0). */
+  function reportRects() {
+    if (!composited) return;
+    var out = [];
+    /* soft: region-only ("~" prefix). The host draws it (DWM clips pixels to
+       the region) but it is not a surface of ours -- it neither owns input
+       nor holds the cursor. Only the travel's bounding box is soft.
+       Nothing here says anything about the APP WINDOW: while it is open the
+       whole overlay sits directly under it in the z-order (host-side), so a
+       rect the app covers is occluded and clicks there land on the app. The
+       "^" (rides-above-the-app) prefix and the host's region hole that
+       served it were removed 2026-09-04 -- see overlay.cpp, hud_set_rects. */
+    function push(x, y, w, h, soft) {
+      out.push((soft ? "~" : "") +
+               Math.round(x) + "," + Math.round(y) + "," +
+               Math.round(w) + "," + Math.round(h));
+    }
+    var boxUp = stage.classList.contains("on");   // the travel box is drawn
+    if (appRect && (appAnim || boxUp)) {
+      /* A travel (or a box held up around one): the bounding box of badge
+         and app rects -- every interpolated rect lies inside it (each edge
+         lerps between the two), so one report made at the start brackets
+         the whole animation, per the grow-before/shrink-after rule. It must
+         hold as long as the BOX is drawn, not just the travel: between
+         APP_ATRECT and APPSHOWN the box stands still over the window, and
+         clipping it then would compose the bare game for a frame.
+         Independent of the panel setting -- the box must be visible even
+         with the console panel disabled. */
+      var b = badgeRect();
+      var L = Math.min(b.left, appRect.left), T = Math.min(b.top, appRect.top);
+      var R = Math.max(b.left + b.w, appRect.left + appRect.w);
+      var B = Math.max(b.top + b.h, appRect.top + appRect.h);
+      /* The badge stays a SOLID rect of its own through the travel -- it is
+         the close control and the pointer-following click-through needs to
+         know the pointer is on it (cursor stays ours there). The bbox is
+         soft: drawn, but input and cursor belong to the game across it. */
+      push(b.left, b.top, b.w, b.h, false);
+      push(L, T, R - L, B - T, true);
+    } else if (appOpen) {
+      /* The app is the real window and takes its own clicks; the overlay
+         holds only the home badge -- a close control where the app does not
+         cover it (the titlebar's own close and Insert always work). */
+      var bo = badgeRect();
+      push(bo.left, bo.top, bo.w, bo.h);
+    } else if (hudVisible || overlayMode) {
+      /* overlayMode without the panel: the badge is still the way back into
+         the console, so its rect is reported even though nothing else here
+         is shown. Collapsed is the only state that reaches this in that
+         case -- opening goes to app mode. */
+      var r = root.getBoundingClientRect();
+      if (expanded) push(r.left, r.top, r.width, r.height);
+      /* Collapsed: the badge -- the 44x66 band #tab centres in, flush with
+         #root's right edge. Mirrors the host's old kHudStrip/kHudBadgeH
+         region math; the CSS badge paints strictly inside it so its rounded
+         corners stay anti-aliased on transparent pixels. */
+      else push(r.right - 44, r.top + (460 - 66) / 2, 44, 66);
+    }
+    /* The docked snippet panel: reported in EVERY state above, app mode
+       included -- the overlay sits under the app, so it is occluded where the
+       app covers it and visible where it does not. Not reporting it while the
+       app is up was tried and rejected: that HIDES the dock, which is not
+       "behind". */
+    if (dock) {
+      /* SOFT when the snippet asked for passthrough: the rect still joins the
+         region (DWM clips composited pixels to it, so a soft rect is the only
+         way the panel is drawn at all) but it is not a surface of ours, so the
+         click and the cursor belong to the game across it. That is the whole
+         difference between a control panel and a readout. */
+      var d = dock.el.getBoundingClientRect();
+      push(d.left, d.top, d.width, d.height, dock.pass);
+    }
+    /* The flyout: SOLID (it takes clicks and holds the cursor -- soft would
+       let the pointer-following click-through pass its clicks to the game),
+       and reported for the whole time it is out OR moving, per the rule
+       above: the full rect goes in before the grow starts and leaves only
+       after transitionend. */
+    if (flyOpen || flyAnim) {
+      var fr = flyRect();
+      push(fr.left, fr.top, fr.w, fr.h);
+    }
+    send("RECTS:" + out.join(";"));
+  }
+  /* Anchored CSS follows a window resize by itself; the report has to
+     follow it too. rAF-debounced: the game window mid-drag resizes every
+     frame, and one report per frame is already more than the host needs. */
+  var rectsRaf = 0;
+  window.addEventListener("resize", function () {
+    if (rectsRaf) return;
+    rectsRaf = requestAnimationFrame(function () {
+      rectsRaf = 0;
+      // #root needs nothing: its home anchor is pure CSS and follows the
+      // resize by itself. The app window is the HOST's to re-glue (its tick
+      // follows the client rect); a travel caught mid-resize keeps its old
+      // target -- the union region still brackets it, and the host places
+      // the window from the fresh client rect at APP_ATRECT regardless.
+      // The flyout is JS-placed off the badge's home, so it moves here --
+      // before the report, which reads the same flyRect() numbers.
+      if (flyOpen || flyAnim) flyPlace();
+      reportRects();
+    });
+  });
+
+  /* The docked snippet panel (DOCKP snapshots from the host). The iframe has
+     its own origin -- the host maps one per docked snippet -- so same-origin
+     policy keeps a snippet's page out of this document; the sandbox also
+     keeps it from navigating US anywhere. src changes only when the content
+     actually changed, so a move/resize never reloads the snippet's DOM. */
+  function applyDock(cfg) {
+    if (!cfg || !cfg.on) {
+      if (dock) { dock.el.remove(); dock = null; }
+      reportRects();
+      return;
+    }
+    if (!dock) {
+      var el = document.createElement("div");
+      el.className = "dockpanel";
+      var fr = document.createElement("iframe");
+      fr.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+      el.appendChild(fr);
+      document.body.appendChild(el);
+      dock = { el: el, frame: fr, src: null, run: 0, pass: false };
+    }
+    // The owning RUN id, stamped onto the SNIPMSG relay so the host can
+    // route a docked page's messages to that run's own queue (multi-run:
+    // the floating window's binding closure knows its run; this page is the
+    // docked path's only carrier of the same fact).
+    dock.run = cfg.run | 0;
+    /* fx_window_passthrough. The panel still draws; it just stops owning the
+       clicks over it -- see the SOLID/SOFT split at reportRects. pointer-events
+       goes with it so the frame itself never sees a hover or a context menu
+       either, which would otherwise still fire on the way past. */
+    dock.pass = !!cfg.pass;
+    dock.el.style.pointerEvents = dock.pass ? "none" : "";
+    var s = dock.el.style;
+    s.left = s.right = s.top = s.bottom = "auto";
+    s.width  = (cfg.w | 0) + "px";
+    s.height = (cfg.h | 0) + "px";
+    if (cfg.corner & 1) s.right  = (cfg.dx | 0) + "px";
+    else                s.left   = (cfg.dx | 0) + "px";
+    if (cfg.corner & 2) s.bottom = (cfg.dy | 0) + "px";
+    else                s.top    = (cfg.dy | 0) + "px";
+    if (dock.src !== cfg.src) {
+      dock.src = cfg.src;
+      dock.frame.src = cfg.src || "about:blank";
+    }
+    reportRects();
+  }
+
+  /* Frame -> host. e.source is the guard: only the docked iframe's window
+     matches, so nothing else can post as it, whatever the payload claims. */
+  window.addEventListener("message", function (e) {
+    if (dock && e.source === dock.frame.contentWindow) {
+      // A docked snippet's eclipse_send (the injected frame shim).
+      if (e.data && typeof e.data.__ec_send === "string")
+        send("SNIPMSG:" + (dock.run | 0) + ":" + e.data.__ec_send);
+      // The shim's text-field focus request: DOM focus landed on (1) or
+      // left (0) a text-entry element in the docked page. Relayed as the
+      // same HUD_FOCUS the host already knows -- the page owns the intent,
+      // this document only carries it. A passthrough dock owns no clicks,
+      // so it can never legitimately ask; dropped rather than trusted.
+      if (e.data && typeof e.data.__ec_focus === "number" && !dock.pass)
+        send("HUD_FOCUS:" + (e.data.__ec_focus ? 1 : 0));
+      // A click INSIDE the docked panel. The dock is in-game UI, so touching
+      // it means "back to the game" -- the host closes the app window to the
+      // badge and hands focus to the client, exactly as clicking the client
+      // does (the host acts only while the app is open). A passthrough dock
+      // owns no clicks and its shim never fires, so this cannot come from one;
+      // the guard is belt-and-braces.
+      if (e.data && e.data.__ec_click && !dock.pass)
+        send("DOCKCLICK:1");
+    }
+  });
+
+  /* TWO POSITIONS, not one (overlay-plan.md, corrected 2026-08-22). The badge
+     has a FIXED HOME -- right edge, vertically centred, 12px inset -- which
+     is #root's stylesheet anchor; nothing here ever moves #root. The app's
+     remembered position is the HOST's fact now (a real window rect, anchored
+     client-relative and persisted host-side): this page only ever receives
+     finished rects to travel to, so dragging the app can never shift the
+     badge and closing always returns to a badge that never left. */
+  var HOME_R = 12;                        // the badge's fixed right-edge inset
+  // The badge's home rect in page px -- one end of every travel.
+  function badgeRect() {
+    return { left: window.innerWidth - HOME_R - 44,
+             top: window.innerHeight / 2 - 33, w: 44, h: 66 };
+  }
+
+  function setTravRect(r) {
+    trav.style.left = r.left + "px";  trav.style.top = r.top + "px";
+    trav.style.width = r.w + "px";    trav.style.height = r.h + "px";
+  }
+  // Placement writes that must not animate (start-of-travel positioning).
+  // The reflow read is what commits them before the transitions come back.
+  function still(f) {
+    stage.classList.add("noanim");
+    f();
+    void trav.offsetWidth;
+    stage.classList.remove("noanim");
+  }
+
+  // ---- the badge-target flyout --------------------------------------------
+  // The flyout's final rect: STATIC geometry off the badge's fixed home,
+  // never a mid-animation bounding box -- the region rule needs the full
+  // rect reported before the grow starts. Below the badge; ABOVE it (.up)
+  // when the client is too short to fit it below -- fully visible in the
+  // second-best place beats clipped in the right one.
+  function flyRect() {
+    var b = badgeRect();
+    var h = flyH();
+    var below = b.top + b.h + FLY_GAP + h <= window.innerHeight;
+    return { left: b.left, w: FLY_W, h: h, up: !below,
+             top: below ? b.top + b.h + FLY_GAP
+                        : Math.max(0, b.top - FLY_GAP - h) };
+  }
+  // Position from the SAME rect the region reports -- one source, so pixels
+  // and region cannot drift. The .up case is bottom-anchored so the height
+  // grow runs upward, out of the badge; #flyin flips its anchor with it.
+  // A placement write, not an animated one: height is the only transitioned
+  // property, so left/top/bottom writes land immediately.
+  function flyPlace() {
+    var r = flyRect();
+    fly.classList.toggle("up", r.up);
+    fly.style.left = r.left + "px";
+    // The open height is written here too, so .out grows to the CURRENT row
+    // count instead of a constant in the sheet.
+    fly.style.setProperty("--fly-h", r.h + "px");
+    $("flyin").style.height = r.h + "px";
+    if (r.up) { fly.style.top = "auto";
+                fly.style.bottom = (window.innerHeight - r.top - r.h) + "px"; }
+    else      { fly.style.bottom = "auto";
+                fly.style.top = r.top + "px"; }
+  }
+  // ONE button: its icon is the target a click would switch TO -- the
+  // alternative, not the current choice, so no highlight is needed.
+  function flySync() {
+    var toPanel = badgeTarget === "app";
+    // The switch is meaningless while something is ALREADY OPEN -- picking a
+    // target there would fight the thing on screen -- so the menu is Quit
+    // alone for the app AND for the panel. One rule, not a special case for
+    // the app: whatever is up, right-click offers the way out of it.
+    $("flyBtn").style.display = flyQuitOnly() ? "none" : "";
+    $("flyPanelIco").style.display = toPanel ? "" : "none";
+    $("flyAppIco").style.display   = toPanel ? "none" : "";
+    // Says what the click DOES, not what it configures: picking a target
+    // switches and opens it in one go.
+    $("flyBtn").title = toPanel ? "Open Panel" : "Open Console";
+  }
+  function flyShow() {
+    if (flyOpen) return;
+    flyOpen = true; flyAnim = true;
+    flySync();
+    flyPlace();
+    reportRects();               // region first, THEN pixels: the grow rule
+    send("FLYOUT:1");
+    animStart("fly-open");
+    fly.classList.add("out");
+  }
+  // instant: another animation is about to own the stage (a badge click, an
+  // APPOPEN from Insert) -- the flyout must not overlap it, so it vanishes
+  // in one committed write instead of retracting. That construction is also
+  // what keeps animStart/animEnd single-tenant: an ANIMATED retract only
+  // ever runs while nothing else is moving.
+  function flyHide(instant) {
+    if (!flyOpen && !flyAnim) return;
+    flyOpen = false;
+    send("FLYOUT:0");
+    if (instant) {
+      flyAnim = false;
+      fly.classList.add("noanim");
+      fly.classList.remove("out");
+      void fly.offsetWidth;      // commit before the transition comes back
+      fly.classList.remove("noanim");
+      reportRects();
+    } else {
+      flyAnim = true;
+      animStart("fly-close");
+      fly.classList.remove("out");
+    }
+  }
+  fly.addEventListener("transitionend", function (e) {
+    if (e.propertyName !== "height") return;
+    animEnd();
+    flyAnim = false;
+    if (!flyOpen) reportRects(); // shrink only after the motion finished
+  });
+  // The switch: always to the alternative (the icon shown IS that
+  // alternative). No flySync here -- swapping the icon mid-retract would
+  // flash the other glyph; the next flyShow syncs before it is seen.
+  $("flyBtn").addEventListener("click", function () {
+    badgeTarget = badgeTarget === "app" ? "panel" : "app";
+    // ...and OPEN it. Picking a target is the user saying which one they
+    // want, so making them click the badge afterwards is a second step
+    // for a decision already made. Instant retract, not animated: the
+    // thing being opened owns the stage from here, and two animations
+    // at once is what animStart/animEnd are kept single-tenant to avoid.
+    flyHide(true);
+    if (badgeTarget === "panel") setExpanded(true);
+    else                         send("APP_ENTER");
+  });
+
+  $("flyQuit").addEventListener("click", function () {
+    flyHide(true);
+    send("QUIT");
+  });
+
+  // Right-click on the badge toggles the flyout -- only while the badge is
+  // COLLAPSED in overlay mode. With the app open the badge is its close
+  // control and stays single-purpose; outside overlay mode there is nothing
+  // to choose. The document-level contextmenu suppression above runs in
+  // capture and only preventDefaults (no stopPropagation), so this target
+  // listener still fires; what it suppresses is the browser menu.
+  $("tab").addEventListener("contextmenu", function () {
+    if (!composited || !overlayMode) return;
+    // Mid-animation the stage belongs to whatever is moving. With the app
+    // OPEN the menu still applies -- it is Quit only there (flySync).
+    //
+    // WITH THE PANEL OPEN it applies too, and the panel STAYS OPEN while the
+    // menu is out. Closing it first was the alternative and is worse: it is
+    // two state changes for one gesture, and dismissing the menu would then
+    // cost you the panel you already had. The app does not close when you
+    // right-click the badge either, so this is the consistent half as well.
+    if (appAnim) { flyHide(true); return; }
+    if (flyOpen) flyHide(false);
+    else         flyShow();
+  });
+
+  // In-page dismissal: a click on anything of OURS that is not the flyout
+  // or the badge (the badge's own click handler owns its case). Clicks
+  // outside the overlay never reach this document -- they route to the game
+  // -- so the host's LL hook covers those with CLICKAWAY.
+  document.addEventListener("mousedown", function (e) {
+    if (!flyOpen) return;
+    var tab = $("tab");
+    if (fly.contains(e.target) || tab.contains(e.target) || e.target === tab) return;
+    flyHide(false);
+  }, true);
+
+  // App mode keeps #root shown even with the panel disabled: the home badge
+  // is the app's close control, and in overlay mode it is the way back into
+  // the console. Otherwise follow the setting.
+  function applyRootVisibility() {
+    root.style.display =
+      (hudVisible || appOpen || appAnim || overlayMode) ? "" : "none";
+  }
+
+  // Open leg 1 (host sent APPOPEN with the window's target rect): travel the
+  // empty box home badge -> rect. The box is all there is -- the real window
+  // shows underneath it at APP_ATRECT and the box drops at APPSHOWN.
+  function startAppOpen() {
+    appOpen = true; appAnim = true;
+    shownPending = false;    // fresh open, fresh leg 3
+    applyRootVisibility();   // the badge must show even with the panel off
+    stage.classList.add("on");
+    still(function () { setTravRect(badgeRect()); });
+    // Region first (the union bracketing the travel), THEN pixels: grow the
+    // region before growing into it, per the ordering rule in reportRects.
+    reportRects();
+    animStart("app-open");
+    setTravRect(appRect);
+  }
+
+  // Close leg 1 (host sent APPCLOSE with the window's current rect): stand
+  // the box over the window, and only once it has demonstrably been composed
+  // tell the host, which then hides the window and answers APPGO to start
+  // the travel home. Telling it early is the flash of the game this
+  // choreography exists to prevent.
+  //
+  // THE WITNESS IS ELEMENT TIMING, NOT A rAF COUNT (2026-09-07). The double
+  // rAF only proved the box frame was SUBMITTED, and the host's DwmFlush
+  // pair after APP_BOXUP is a fixed two passes of slack: with the iGPU (DWM's
+  // and the WebView2 GPU process's adapter) 90% busy, 4 of 9 closes presented
+  // whole-rect bare game between the hide and the box -- the user's "shows
+  // Roblox through before the animation starts", measured live with DXGI
+  // desktop duplication (docs/app-close-flicker.md, 2026-09-07). Four rAFs
+  // cut that to 2/26 and were still slack: under load a rAF is paced at one
+  // DWM pass, same as a flush.
+  //
+  // PerformanceElementTiming.renderTime is filled from the compositor's
+  // presentation feedback, so a PerformanceObserver on the box fires once
+  // Chromium has COMMITTED the frame that carries it -- renderer, raster, IPC
+  // and the GPU process's queue included, which a rAF count cannot see. It
+  // only reports images and text, hence the 1x1 background image of the
+  // box's own colour, and only once per (element, image), hence the per-close
+  // fragment on the URL. Idle it fires at the same +18..21ms the double rAF
+  // did (hide +47..63 vs +36..50); under load it waited +57..186ms and the
+  // callback ran one DWM pass after renderTime. Measured 3/36 residual under
+  // that load vs 4/9 -- and the residual is the limit: the feedback is
+  // Chromium's commit, NOT DWM's display. DWM goes on composing the
+  // overlay's OLD surface until the new one's GPU work completes on a
+  // starved GPU (a commit at +92ms was on glass at +289ms once), and no page
+  // or DwmFlush signal can see that fence. If that tail matters, the fix is
+  // structural, not a longer wait: keep the box composed under the app for
+  // the whole open (it provably is at APPSHOWN), or a host-owned DComp
+  // cover/travel that needs no new GPU work at close time.
+  var boxupObs = null, boxupSeq = 0, boxPx = null;
+  function boxWitnessImage() {
+    // Made once from the box's computed colour, so a token change cannot
+    // paint a pixel the box itself would not.
+    if (boxPx !== null) return boxPx;
+    try {
+      var c = document.createElement("canvas"); c.width = c.height = 1;
+      var g = c.getContext("2d");
+      g.fillStyle = getComputedStyle(trav).backgroundColor; g.fillRect(0, 0, 1, 1);
+      boxPx = c.toDataURL("image/png");
+    } catch (e) { boxPx = ""; }
+    return boxPx;
+  }
+  function startAppClose() {
+    appOpen = false; appAnim = true;
+    shownPending = false;   // a close supersedes any deferred box drop
+    stage.classList.add("on");
+    still(function () { setTravRect(appRect); });
+    reportRects();
+    // The suffix is diagnostics only (the host matches the prefix and the
+    // ZLOG trace records it), so a capture says which path fired.
+    var seq = ++boxupSeq, done = false, t0 = performance.now();
+    function fire(why) {
+      if (done || seq !== boxupSeq) return;
+      done = true;
+      send("APP_BOXUP:" + why + " +" + Math.round(performance.now() - t0) + "ms");
+    }
+    var px = boxWitnessImage();
+    var canWitness = px && window.PerformanceObserver && PerformanceObserver.supportedEntryTypes &&
+                     PerformanceObserver.supportedEntryTypes.indexOf("element") >= 0;
+    if (canWitness) {
+      try {
+        if (boxupObs) boxupObs.disconnect();
+        boxupObs = new PerformanceObserver(function (list) {
+          var es = list.getEntries();
+          for (var i = 0; i < es.length; i++) {
+            if (es[i].identifier === "apptrav") {
+              fire("present lag=" + Math.round(performance.now() - es[i].renderTime));
+              return;
+            }
+          }
+        });
+        boxupObs.observe({ type: "element" });
+        trav.setAttribute("elementtiming", "apptrav");
+        trav.style.backgroundSize = "100% 100%";
+        trav.style.backgroundImage = 'url("' + px + '#' + seq + '")';
+        // Belt: a witness that never fires must not strand the close. Well
+        // inside the host's 1.5s watchdog, well past any measured wait.
+        setTimeout(function () { fire("timeout"); }, 600);
+        return;
+      } catch (e) { boxupObs = null; }
+    }
+    // No Element Timing here: the old double rAF, submission only.
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { fire("raf"); });
+    });
+  }
+
+  // Close leg 2 (host sent APPGO; the window is hidden): travel home.
+  function startAppTravelHome() {
+    // Belt for ordering violations: APPGO with the stage DOWN would run
+    // setTravRect on a display:none element -- no transition, no
+    // transitionend, appAnim wedged (see the APPSHOWN handler). Re-stand the
+    // box at the window rect first; the travel then plays and its end
+    // restores the rects and sends APPIDLE, whatever dropped the stage.
+    if (!stage.classList.contains("on")) {
+      stage.classList.add("on");
+      still(function () { setTravRect(appRect); });
+    }
+    animStart("app-close");
+    setTravRect(badgeRect());
+  }
+
+  // The travel's end, both directions, timed from the real event so the
+  // region shrink can never race the motion. Width is the one property
+  // guaranteed to change (badge 44 vs app >=320), and transitionend fires
+  // once per property.
+  trav.addEventListener("transitionend", function (e) {
+    if (e.propertyName !== "width") return;
+    animEnd();
+    appAnim = false;
+    if (appOpen) {
+      send("APP_ATRECT");         // host shows the window; the box holds
+      if (shownPending) {         // ...unless APPSHOWN already came (watchdog
+        shownPending = false;     // beat the travel): run leg 3 now
+        stage.classList.remove("on");
+        reportRects();
+        send("APPUNCOVER");       // box gone -> host glues the overlay under the app (Fault A)
+      }
+      return;
+    }
+    stage.classList.remove("on");
+    applyRootVisibility();
+    reportRects();                            // the badge alone, motion finished
+    // The travel is over, so the host can stop letting clicks through
+    // the overlay -- see APPIDLE there. Sent after the rects, so the
+    // region is already back to the badge when input returns to it.
+    send("APPIDLE");
+  });
+
+  /* Animation frame-gap sampler (dev instrument, cheap enough to ship). The
+     open/close animations here are main-thread CSS (width/height/clip are not
+     compositor-accelerated), so rAF gaps ARE the produced frame times; a
+     worst-gap over ~2 frames is the stutter the eye reports as "laggy".
+     One ANIM line per run, through the normal message trace, so ECLIPSE_ZLOG
+     captures it beside the z-order calls. */
+  var animRaf = 0, animT = [], animTag = "";
+  function animStart(tag) {
+    if (animRaf) cancelAnimationFrame(animRaf);
+    animT = []; animTag = tag;
+    var loop = function (ts) { animT.push(ts); animRaf = requestAnimationFrame(loop); };
+    animRaf = requestAnimationFrame(loop);
+  }
+  function animEnd() {
+    if (!animRaf) return;
+    cancelAnimationFrame(animRaf); animRaf = 0;
+    if (animT.length < 3) return;
+    var worst = 0, sum = 0, over = 0;
+    for (var i = 1; i < animT.length; i++) {
+      var g = animT[i] - animT[i - 1];
+      sum += g; if (g > worst) worst = g; if (g > 25) over++;
+    }
+    send("ANIM:" + animTag + " frames=" + (animT.length - 1) +
+         " dur=" + Math.round(animT[animT.length - 1] - animT[0]) +
+         " avg=" + (sum / (animT.length - 1)).toFixed(1) +
+         " worst=" + Math.round(worst) + " over25=" + over);
+  }
+
+  function setExpanded(next) {
+    expanded = next;
+    animStart("panel-" + (next ? "open" : "close"));
+    root.classList.toggle("collapsed", !expanded);
+    $("chev").innerHTML = expanded ? "&#9656;" : "&#9666;";
+    $("tab").title = expanded ? "Collapse" : "Expand";
+    // OPENING: tell the host first, so the window (fallback) is already
+    // panel-sized -- and the region (composited) already the right shape --
+    // for the content to grow into. The tab does not move when it grows --
+    // every size shares the right edge -- so nothing jumps.
+    // CLOSING: animate first; the host shrinks and the rects report on
+    // transitionend, for the same reason in reverse.
+    /* The panel NEVER takes focus, open or closed: it reads as a Roblox-owned
+       UI, clicks work without focus, and the game keeps the keyboard so W
+       still walks. Opening the panel once took focus; it put an accent band
+       around it and changed how Windows rendered its text, both exactly the
+       tells the panel is designed not to have. Focus belongs to app mode,
+       which is a real window now and takes it the ordinary way. See
+       overlay-plan.md. */
+    if (expanded) { send("HUD_TOGGLE:1"); reportRects(); }
+    panel.classList.toggle("hidden", !expanded);
+  }
+
+  // One element, one handler, three jobs decided by state:
+  //   app open -> REQUEST close (the home badge is the app's close control;
+  //     the host runs the choreography and hands the keyboard to the game),
+  //   collapsed in OVERLAY MODE -> what the badge-target flyout chose: the
+  //     app (REQUEST it -- the console lives in the game there) or the
+  //     panel, which the flyout makes reachable again in this mode,
+  //   otherwise -> the panel toggle, which never takes focus.
+  // Requests, not actions: the host owns app-mode state and answers with
+  // APPOPEN / APPCLOSE. Mid-travel and mid-handoff clicks are dropped by the
+  // host's leg guards, same as a second Insert press.
+  // What the badge DOES, in one place. The Insert hotkey runs this too (the
+  // host sends HOTKEY), so the mode choice lives here rather than being
+  // decided once for the mouse and again for the keyboard -- badgeTarget and
+  // `expanded` are the page's state, and a second copy in the host would be a
+  // second owner of the same question.
+  function badgeAction() {
+    if (flyOpen || flyAnim) flyHide(true);  // this action owns the stage
+    if (appOpen || appAnim) { send("APP_EXIT"); return; }
+    if (!expanded && overlayMode) {
+      if (badgeTarget === "panel") { setExpanded(true); return; }
+      send("APP_ENTER");
+      return;
+    }
+    setExpanded(!expanded);
+  }
+
+  $("tab").addEventListener("click", badgeAction);
+
+  // The closing edge, reported once the motion has actually finished, so the
+  // host clips its region while the collapsed state is already what you see.
+  // Listening for the real event rather than matching a timeout keeps the
+  // duration in one file. The moving property differs per mode -- composited
+  // animates #shape's box, the fallback fades #panel -- so each mode watches
+  // its own element and property (transitionend fires once per property).
+  var closer = composited
+      ? { el: document.getElementById("shape"), prop: "width" }
+      : { el: panel, prop: "opacity" };
+  closer.el.addEventListener("transitionend", function (e) {
+    if (e.propertyName !== closer.prop) return;
+    animEnd();                       // open and close both end on this property
+    if (!expanded) {
+      send("HUD_TOGGLE:0"); reportRects();
+      // The badge is the one place a content swap is allowed. Run whatever was
+      // queued for it (panel <-> app) now that the retract has finished.
+      if (pendingAtBadge) { var f = pendingAtBadge; pendingAtBadge = null; f(); }
+    }
+  });
+
+  function view(which) {
+    var isLog = which === "log";
+    log.hidden   = !isLog;
+    snips.hidden =  isLog;
+    $("vLog").classList.toggle("sel", isLog);
+    $("vSnip").classList.toggle("sel", !isLog);
+  }
+  $("vLog").addEventListener("click",  function () { view("log"); });
+  $("vSnip").addEventListener("click", function () { view("snips"); });
+
+  $("arm").addEventListener("click",   function () { send("HUD_ARM_TOGGLE"); });
+  // The header pill flips it too. Same message as the footer button: the
+  // HOST owns the gate and both are just ways of asking, so there is no
+  // second opinion about the state to keep in step.
+  $("armpill").addEventListener("click", function () { send("HUD_ARM_TOGGLE"); });
+  $("stop").addEventListener("click",  function () { send("STOP"); });
+  // Asks the HOST to clear, rather than emptying this view: the history the
+  // host holds is what both views replay from, so a local clear came back the
+  // next time it replayed. The host answers with LOGCLEAR to both.
+  $("clear").addEventListener("click", function () { send("LOGCLEAR"); });
+
+  function addLine(level, text) {
+    if (empty) { empty.remove(); empty = null; }
+    var atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    var d = document.createElement("div");
+    d.className = level || "info";
+    d.textContent = text;
+    log.appendChild(d);
+    while (log.childNodes.length > LOG_MAX) log.removeChild(log.firstChild);
+    // Only follow the tail if already at it, so scrolling back to read
+    // something is not yanked away by the next line.
+    if (atEnd) log.scrollTop = log.scrollHeight;
+  }
+
+  function esc(t) {
+    return String(t).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  // The same glyphs the sidebar draws, so a row here and a row there are the
+  // same object: a document outline for a file, a filled folder for a project,
+  // a caret for a group that unfolds.
+  var ICO_FILE =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>' +
+    '<path d="M14 2v6h6"/></svg>';
+  var ICO_PROJECT =
+    '<svg viewBox="0 0 24 24" fill="currentColor">' +
+    '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2c.5 0 .97.24 1.25.65l.9 1.3h8.65A1.5 1.5 0 0 1 21 8.45' +
+    'v9.05A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>';
+  var ICO_CARET =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+
+  // One click runs. No confirm: Stop is right there, and the arm gate is what
+  // stands between a snippet and the process.
+  function fileRow(name, sub, msg, depth) {
+    var row = document.createElement("div");
+    row.className = "script-row";
+    row.dataset.p = name;      // paintRuns() finds rows by this
+    row.style.paddingLeft = (7 + (depth || 0) * 14) + "px";
+    row.innerHTML =
+      '<span class="script-ico">' + ICO_FILE + "</span>" +
+      '<span class="script-meta">' +
+        '<span class="script-name">' + esc(name) + "</span>" +
+        '<span class="script-sub">' + esc(sub) + "</span>" +
+      "</span>" +
+      '<span class="run-ico">&#9654;</span>';
+    row.addEventListener("click", function () { activate(name, msg); });
+    return row;
+  }
+
+  // Which runs are live, and the marks for them. Kept OUT of renderSnips: the
+  // host re-sends SNIPS on a timer, and rebuilding the tree to change a dot
+  // would destroy whatever the pointer was on -- the same bug that made the
+  // console's sidebar flicker every 2s (fixed there with a payload dedupe).
+  // This toggles classes on the rows that already exist.
+  var liveRuns = [];
+
+  function baseOf(p) { var i = p.lastIndexOf("/"); return i < 0 ? p : p.slice(i + 1); }
+
+  // The live run for a row, or null. Labels are basenames, paths may not be.
+  function runFor(path) {
+    var b = baseOf(path);
+    for (var k = 0; k < liveRuns.length; k++)
+      if (liveRuns[k].name === b || baseOf(liveRuns[k].name) === b) return liveRuns[k];
+    return null;
+  }
+
+  var askGo = null;
+  function closeAsk() { $("ask").classList.remove("on"); askGo = null; }
+
+  // What a click on a row MEANS, in one place -- the same three outcomes the
+  // console's requestRun gives, so the two views cannot disagree about what a
+  // click does:
+  //   already running  -> STOP that run. No question: the row is marked live,
+  //                       and a second copy of one snippet is almost never
+  //                       what a click on it meant.
+  //   others running   -> ask. Concurrency stays opt-in here too.
+  //   nothing running  -> just run it.
+  function activate(path, msg) {
+    var live = runFor(path);
+    if (live) { send("STOP:" + live.id); return; }
+    if (liveRuns.length) {
+      askGo = function () { send(msg); view("log"); };
+      $("askQ").textContent = liveRuns.length > 1
+        ? liveRuns.length + " snippets are already running"
+        : liveRuns[0].name + " is already running";
+      $("askWho").textContent = liveRuns.map(function (r) { return r.name; }).join(", ");
+      $("ask").classList.add("on");
+      return;
+    }
+    send(msg); view("log");
+  }
+
+  $("askRun").addEventListener("click", function () { var g = askGo; closeAsk(); if (g) g(); });
+  $("askOnly").addEventListener("click", function () {
+    // Stop-all then run: the host answers with a RUNSTATE that empties the
+    // list, and the queued run goes on the next one rather than racing it.
+    var g = askGo; closeAsk();
+    send("STOP");
+    if (g) pendingAfterStop = g;
+  });
+  $("askNo").addEventListener("click", closeAsk);
+  var pendingAfterStop = null;
+
+  function paintRuns() {
+    var rows = snips.querySelectorAll("[data-p]");
+    for (var i = 0; i < rows.length; i++) {
+      var b = baseOf(rows[i].dataset.p), hit = null;
+      for (var k = 0; k < liveRuns.length; k++)
+        if (liveRuns[k].name === b || baseOf(liveRuns[k].name) === b) { hit = liveRuns[k]; break; }
+      rows[i].classList.toggle("running", !!hit);
+      rows[i].classList.toggle("stopping", !!(hit && hit.stopping));
+    }
+  }
+
+  function renderSnips(list) {
+    snips.innerHTML = "";
+    if (!list.length) {
+      var e = document.createElement("div");
+      e.id = "empty";
+      e.textContent = "no snippets yet";
+      snips.appendChild(e);
+      return;
+    }
+    // Marks last: the rows have just been replaced, so whatever they carried is
+    // gone and has to be put back from liveRuns.
+    setTimeout(paintRuns, 0);
+    list.forEach(function (it) {
+      if (it.t === "file") {
+        snips.appendChild(fileRow(it.p, it.n + " lines", "RUN_FILE:" + it.p, 0));
+
+      } else if (it.t === "project") {
+        // A project is ONE row that runs the whole folder. Its .cpp files
+        // compile together, so listing members would offer builds that cannot
+        // succeed -- which is what the missing sibling header was.
+        var head = document.createElement("div");
+        head.className = "group-head is-project";
+        head.dataset.p = it.p;     // projects run as one, and can be live too
+        head.innerHTML =
+          '<span class="group-ico">' + ICO_PROJECT + "</span>" +
+          '<span class="group-name">' + esc(it.p) + "</span>" +
+          '<span class="run-ico">&#9654;</span>';
+        head.title = "project - runs every .cpp in the folder together";
+        head.addEventListener("click", function () {
+          activate(it.p, "RUN_PROJECT:" + it.p);
+        });
+        snips.appendChild(head);
+
+      } else if (it.t === "group") {
+        // A group unfolds. Collapsed state is per session and lives here: the
+        // console keeps its own in localStorage and the two are separate views
+        // of the same tree, not a shared control surface.
+        var g = document.createElement("div");
+        g.className = "group-head";
+        g.innerHTML =
+          '<span class="group-caret">' + ICO_CARET + "</span>" +
+          '<span class="group-name">' + esc(it.p) + "</span>";
+        snips.appendChild(g);
+        (it.c || []).forEach(function (child) {
+          var slash = child.p.lastIndexOf("/");
+          snips.appendChild(fileRow(child.p.slice(slash + 1), child.n + " lines",
+                                    "RUN_FILE:" + child.p, 1));
+        });
+      }
+    });
+  }
+
+  // Announce only once the handler below exists. The host sends nothing until
+  // it hears this: navigate() is asynchronous, so anything pushed earlier
+  // arrives at a page that has no __onHudMsg and vanishes.
+  //
+  // The transport may land a tick after the document does (hud_send is
+  // injected by the wrapper; chrome.webview should pre-exist but is not worth
+  // assuming), so this retries rather than trusting either to be there.
+  (function announce(tries) {
+    var ready = composited ? (window.chrome && window.chrome.webview)
+                           : window.hud_send;
+    if (ready) { send("HUD_READY"); return; }
+    if (tries > 0) setTimeout(function () { announce(tries - 1); }, 50);
+  })(40);
+
+  window.__onHudMsg = function (msg) {
+    var i = msg.indexOf(":");
+    var type = i < 0 ? msg : msg.slice(0, i);
+    var body = i < 0 ? "" : msg.slice(i + 1);
+
+    if (type === "LOGCLEAR") {
+      // The host dropped the history; both views empty together. The
+      // placeholder comes back, so a cleared log reads as "nothing yet"
+      // rather than as a panel that lost its content area.
+      log.innerHTML = "<div id=\"empty\">waiting for output…</div>";
+      empty = $("empty");
+
+    } else if (type === "LOGS") {
+      var rows;
+      try { rows = JSON.parse(body); } catch (e) { return; }
+      for (var k = 0; k < rows.length; k++) addLine(rows[k].l, rows[k].t);
+
+    } else if (type === "STATE") {
+      var s;
+      try { s = JSON.parse(body); } catch (e) { return; }
+      // Who, not which process. The pid answers "is it attached to
+      // something"; the account answers "is it attached to ME", which is the
+      // question that matters with two clients open. pid moves to the tooltip
+      // rather than being dropped -- it is still what you need when reporting
+      // something.
+      var who = $("pid");
+      if (!s.pid) {
+        who.textContent = "detached";
+        who.title = "";
+      } else {
+        // NO "pid N" FALLBACK. It only ever appeared in the seconds after
+        // joining, while LocalPlayer was not readable yet -- so it was not
+        // information, it was a flicker of the wrong thing on the way to the
+        // right one, and it made the header look broken. Waiting shows less
+        // and lies less; the identity tick reads the live name twice a second
+        // and fills this the moment it exists. The pid is still one hover
+        // away, which is where it belongs -- it answers "attached to
+        // something", not "attached to me".
+        who.textContent = s.user || "";
+        who.title = "pid " + s.pid + (s.version ? ("  ·  " + s.version) : "");
+      }
+      var pl = $("place");
+      pl.textContent = s.place || "";
+      pl.hidden = !s.place;
+      var pill = $("armpill");
+      // ONE SPELLING, HERE AND IN THE APP'S TITLEBAR CHIP (app.js). This
+      // read "ARMED" against a lowercase "dry-run" -- it did not even agree
+      // with itself, let alone with the console showing the same fact.
+      pill.textContent = s.armed ? "Armed" : "Dry-run";
+      // Label = what is true, tooltip = what clicking does. Same split the
+      // app's chip uses; a control that named the action would read as a
+      // promise that you are safe.
+      pill.title = s.armed
+        ? "Writes are being performed. Click to go back to logging them."
+        : "Writes are logged and never performed. Click to allow them.";
+      pill.classList.toggle("armed", !!s.armed);
+      var arm = $("arm");
+      arm.textContent = s.armed ? "Disarm" : "Arm";
+      arm.classList.toggle("on", !!s.armed);
+
+    } else if (type === "HEALTH") {
+      var h;
+      try { h = JSON.parse(body); } catch (e) { return; }
+      var el = $("hp");
+      // Hidden rather than zeroed when it cannot be read: in the menu or while
+      // dead there is no humanoid, and an empty bar would read as "you are
+      // about to die" rather than "there is nothing to report".
+      el.hidden = !h.ok;
+      if (!h.ok) return;
+      var frac = h.max > 0 ? h.hp / h.max : 0;
+      el.textContent = h.hp + " HP";
+      el.classList.toggle("warn", frac <= 0.6 && frac > 0.3);
+      el.classList.toggle("err",  frac <= 0.3);
+
+    } else if (type === "RUNSTATE") {
+      var r;
+      try { r = JSON.parse(body); } catch (e) { return; }
+      $("runrow").classList.toggle("on", !!r.running);
+      $("tabdot").classList.toggle("on", !!r.running);
+      // Stop is the only button that DOES anything while a snippet runs.
+      $("stop").classList.toggle("running", !!r.running);
+      // building implies running -- the host only reports it inside a run.
+      $("runrow").classList.toggle("building", !!r.building);
+      $("tabdot").classList.toggle("building", !!r.building);
+
+      // SEVERAL can be live now. The panel is one narrow line and cannot list
+      // four names, so it names ONE and counts the rest -- and the tree below
+      // marks every live row, which is where "which ones" is actually answered.
+      liveRuns = r.runs || [];
+      paintRuns();
+      if (pendingAfterStop && !liveRuns.length) {
+        var go = pendingAfterStop; pendingAfterStop = null; go();
+      }
+      var n = liveRuns.length;
+      $("runname").textContent =
+        !r.running ? (r.name ? r.name + " — stopped" : "nothing running")
+        : r.building ? (r.name ? r.name + " — building" : "building")
+        : n > 1      ? (r.name + " +" + (n - 1) + " more")
+        : (r.name ? r.name : "running");
+      // Stop takes everything with it, so say so rather than let a count of
+      // four sit next to a button that reads like it stops one.
+      $("stop").title = n > 1 ? ("Stop all " + n) : "Stop";
+
+    } else if (type === "SNIPS") {
+      var list;
+      try { list = JSON.parse(body); } catch (e) { return; }
+      renderSnips(list);
+
+    } else if (type === "APPOPEN") {
+      // The host's open choreography, leg 1: travel to the rect it names. A
+      // panel that is open retracts first -- its own signed-off animation --
+      // and the travel starts from the badge when that finishes
+      // (pendingAtBadge, run by the #shape transitionend listener).
+      if (!composited) return;
+      flyHide(true);   // Insert can open the app with the flyout still out
+      var pr = body.split(",");
+      appRect = { left: +pr[0], top: +pr[1], w: +pr[2], h: +pr[3] };
+      if (!isFinite(appRect.w) || appRect.w <= 0) { appRect = null; return; }
+      if (expanded) { pendingAtBadge = startAppOpen; setExpanded(false); }
+      else startAppOpen();
+
+    } else if (type === "APPSHOWN") {
+      // Open leg 3: the real window is composed under the box -- drop it.
+      // The badge stays as the close control; its rect is all that remains.
+      //
+      // STALE-PROOF (2026-09-02). Dropping the stage at the wrong moment is
+      // not cosmetic: "on" off means display:none, a display:none element
+      // runs NO transition, transitionend never fires, and appAnim wedges
+      // TRUE forever -- badge dead (this file gates on appAnim), APPIDLE
+      // never sent, and the corridor rect stuck in the region: the permanent
+      // dead-rectangle-over-the-game state. Reproduced in a message-order
+      // harness against this exact page: APPSHOWN after APPCLOSE, and
+      // APPSHOWN after APPGO, both wedge; every other ordering recovers.
+      // So: an APPSHOWN after a close began (appOpen false) is stale -- the
+      // stage belongs to the close now, ignore it outright; one landing
+      // before the open travel ended (the host's 1.5s open watchdog can beat
+      // our transitionend) defers the drop to the travel's end.
+      if (!appOpen) { /* stale: a close owns the stage */ }
+      else if (appAnim) { shownPending = true; }
+      else {
+        stage.classList.remove("on");
+        reportRects();
+        // The box is gone and the app composed under it: tell the host it can
+        // move the overlay to its steady slot under the app now (Fault A).
+        send("APPUNCOVER");
+      }
+
+    } else if (type === "APPCLOSE") {
+      // The host's close choreography, leg 1: the window's current rect.
+      if (!composited) return;
+      var cr = body.split(",");
+      appRect = { left: +cr[0], top: +cr[1], w: +cr[2], h: +cr[3] };
+      pendingAtBadge = null;   // a queued open must not fire after a close
+      startAppClose();
+
+    } else if (type === "APPGO") {
+      // Close leg 2: the window is hidden; travel the box home.
+      startAppTravelHome();
+
+    } else if (type === "OVERLAYMODE") {
+      // Where the console lives. Only changes what the BADGE opens and
+      // whether the badge is shown at all -- entering and leaving app mode
+      // stay the host's call (APPOPEN/APPCLOSE), so a preference flip never
+      // yanks the view out from under a click. Rects re-reported: with the
+      // panel disabled the badge's rect exists exactly because of this flag.
+      overlayMode = body !== "0";
+      if (!overlayMode) flyHide(true);   // the choice only exists in overlay mode
+      applyRootVisibility();
+      reportRects();
+
+    } else if (type === "HUDVIS") {
+      // The console panel's visibility, runtime edition (Settings toggle).
+      // The window stays for the dock; only this element and its rects go.
+      hudVisible = body !== "0";
+      applyRootVisibility();   // app mode keeps #root shown regardless
+      reportRects();
+
+    } else if (type === "DOCKP") {
+      if (!composited) return;   // fallback window cannot host a panel
+      var cfg;
+      try { cfg = JSON.parse(body); } catch (e) { return; }
+      applyDock(cfg);
+
+    } else if (type === "HOTKEY") {
+      // Insert, with nothing open. The host closes an open APP itself and
+      // never gets here for that case -- that is the escape hatch and it must
+      // not depend on this page being alive. Everything else is the badge's
+      // own decision, so it runs the badge's action: in panel mode Insert
+      // opens the panel, which is the whole point. Asked for because a game
+      // holding the mouse makes the keyboard the ONLY way in, and it used to
+      // open the app whatever the badge was set to.
+      badgeAction();
+
+    } else if (type === "CLICKAWAY") {
+      // The host's LL hook: a button landed OUTSIDE the overlay while the
+      // flyout was out. Those clicks route to the game and this document
+      // never hears them, so the hook is the only dismisser they can have.
+      flyHide(false);
+
+    } else if (type === "DOCKEVAL") {
+      // fx_window_eval, crossing into the snippet's origin. This page only
+      // CARRIES the script -- the injected shim in the iframe evals it
+      // there, where it can touch nothing of ours.
+      if (dock && dock.frame.contentWindow)
+        dock.frame.contentWindow.postMessage({ __ec_eval: body }, "*");
+    }
+  };
+
+  // First rects, as soon as the layout exists: until the host hears this the
+  // overlay window has an EMPTY region and even the panel is click-through.
+  // (In overlay mode this is the badge alone -- the collapsed start.)
+  reportRects();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+/* NO color-scheme: `color-scheme: dark` makes Chromium paint its canvas BLACK
+   rather than leaving it transparent, which shows as a solid rectangle over the
+   game outside the rounded corners. Every colour here is explicit. */
+* { box-sizing: border-box }
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: transparent;
+  font: 13px system-ui, "Segoe UI", sans-serif;
+  color: #d2d4da;
+}
+/* TOP-ANCHORED so the header does not move when the panel collapses: the wrap
+   shrinks to its header, and the anchored edge is the one that stays put. */
+body { display: flex; flex-direction: column; justify-content: flex-start }
+
+#wrap {
+  height: 100%; display: flex; flex-direction: column;
+  background: #12131af2;
+  border: 1px solid #ffffff16;
+  border-radius: 10px;
+  /* NO SHADOW. An outer box-shadow always paints OUTSIDE the border box, so
+     over the game -- where the page ground is transparent -- it is the only
+     thing drawing past the corner radius, and it reads as dark square corners
+     on a pale background. Tightening it (0 6px 20px -> 0 2px 6px) only moved
+     the problem: the 2px y-offset put the spill 8px below the bottom edge and
+     4px above the top, so it survived at the BOTTOM corners alone. The 1px
+     border above already separates the panel from the game; depth here costs
+     more than it buys. */
+  overflow: hidden;
+}
+
+/* The title strip is the drag handle, so nothing in it takes clicks. */
+#bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 11px 7px;
+  flex: 0 0 auto;
+  user-select: none;
+  touch-action: none;
+}
+.brand { font-size: 13px; font-weight: 700; color: #e8eaf0; letter-spacing: .2px }
+.by    { font-size: 10.5px; color: #8b6ee7; letter-spacing: .4px }
+#rate  { margin-left: auto; font-size: 10.5px; color: #5d6474;
+         font-variant-numeric: tabular-nums }
+
+#close {
+  margin-left: 6px; width: 20px; height: 20px; line-height: 1;
+  border-radius: 5px; cursor: pointer; font-size: 14px;
+  border: 1px solid transparent; background: transparent; color: #6b7285;
+}
+#close:hover { background: #3a1418; border-color: #e2626b55; color: #ff8d97 }
+
+#body { flex: 1 1 auto; display: flex; min-height: 0 }
+#wrap.min       { height: auto }
+#wrap.min #body { display: none }
+
+/* ---- tabs down the side, as the hub does -------------------------------- */
+#tabs {
+  flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px;
+  padding: 4px 4px 4px 6px; border-right: 1px solid #ffffff10;
+}
+.tab {
+  border: 1px solid transparent; background: transparent; color: #6b7285;
+  font: 11px system-ui, "Segoe UI", sans-serif; letter-spacing: .2px;
+  padding: 6px 9px; border-radius: 6px; cursor: pointer; text-align: left;
+}
+.tab:hover { color: #d2d4da; background: #ffffff08 }
+.tab.on    { color: #e8eaf0; background: #8b6ee71f; border-color: #8b6ee744 }
+
+#pane { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 10px 11px 11px }
+/* The kit scrollbar, as the hub uses. Chromium default is a wide light bar
+   that reads as a foreign object over the game. */
+#pane::-webkit-scrollbar { width: 8px }
+#pane::-webkit-scrollbar-thumb { background: #ffffff1a; border-radius: 4px }
+#pane::-webkit-scrollbar-track { background: transparent }
+.view      { display: none }
+.view.show { display: block }
+
+/* ---- live ---------------------------------------------------------------- */
+.row { display: flex; align-items: center; gap: 8px; margin-bottom: 9px }
+
+.tgl {
+  border-radius: 6px; padding: 5px 12px; cursor: pointer;
+  font: 600 11px system-ui, "Segoe UI", sans-serif; letter-spacing: .4px;
+  border: 1px solid #2b2c35; background: #17171b; color: #9a9ca7;
+}
+.tgl.on { background: #16301f; border-color: #6ee7a855; color: #6ee7a8 }
+
+.pill { font-size: 11px; color: #6b7285; letter-spacing: .2px }
+.pill.hot { color: #ffb454 }        /* targeted */
+.pill.act { color: #6ee7a8 }        /* firing */
+
+#ball { font-size: 11px; color: #5d6474; font-variant-numeric: tabular-nums;
+        min-height: 15px; margin-bottom: 10px }
+
+#tally { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
+.cell  { background: #ffffff08; border: 1px solid #ffffff0f; border-radius: 7px;
+         padding: 7px 4px; text-align: center }
+.cell b { display: block; font-size: 15px; color: #e8eaf0;
+          font-variant-numeric: tabular-nums }
+.cell span { font-size: 9.5px; color: #5d6474; letter-spacing: .2px }
+#c_ok   { color: #6ee7a8 }
+#c_bad  { color: #ff8d97 }
+
+#last { margin-top: 9px; font-size: 11px; color: #6b7285; min-height: 15px }
+
+/* ---- dials --------------------------------------------------------------- */
+/* One grid, so every row lines up whatever the label says: label takes the
+   slack, the three controls are fixed. Flex let long names shove the field
+   about, which is what made the buttons look mismatched row to row. */
+.dial {
+  display: grid; grid-template-columns: 1fr 28px 74px 28px;
+  align-items: center; gap: 7px; margin-bottom: 7px;
+  max-width: 460px;   /* wide enough to use the panel, tight enough that the
+                         field is not an inch from its own label */
+}
+.dial .lbl {
+  font-size: 11.5px; color: #9aa2b4; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dial input {
+  width: 100%; height: 26px; text-align: right;
+  background: #0e0e11; border: 1px solid #2b2c35; border-radius: 6px;
+  color: #e8eaf0; font: 12px ui-monospace, Consolas, monospace;
+  padding: 0 7px;
+}
+.dial input:focus { outline: none; border-color: #8b6ee7aa }
+.stp {
+  width: 26px; height: 26px; padding: 0; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; cursor: pointer;
+  border: 1px solid #2b2c35; background: #17171b; color: #9a9ca7; font-size: 13px;
+}
+.stp:hover { background: #1b1c21; color: #e6e7ec }
+#reset {
+  margin-top: 8px; max-width: 460px; width: 100%; padding: 6px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #2b2c35; background: #17171b; color: #6b7285; font-size: 11px;
+}
+#reset:hover { background: #3a1418; border-color: #e2626b55; color: #ff8d97 }

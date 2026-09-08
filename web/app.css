@@ -1,0 +1,1704 @@
+/* app.css — the only additions on top of the Eclipse UI kit.
+   tokens.css and components.css are the kit, unmodified. Everything here is
+   either (a) making the kit's floating window behave as a real OS window, or
+   (b) the editable-editor overlay the kit doesn't ship (it's display-only).
+   No raw colours: every value below references a kit token. */
+
+/* ---- The window IS the OS window ----------------------------------------
+   The kit centres a floating .window on a .ground with a drop shadow. In a
+   frameless desktop app the OS window is that frame, so it fills instead and
+   drops the shadow/radius that would otherwise be drawn inside itself. */
+html, body { height: 100%; margin: 0; overflow: hidden; }
+
+body.ground { padding: 0; display: block; }
+
+.window {
+  width: 100%;
+  height: 100vh;
+  max-width: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The titlebar is the drag handle; the controls in it are not. */
+/* position: the centred .cmdk-group is absolute against THIS. */
+.titlebar { position: relative; -webkit-app-region: drag; user-select: none; }
+.cmdk, .wincontrols, .wc { -webkit-app-region: no-drag; }
+
+/* ---- Window controls -----------------------------------------------------
+   Windows-style min/max/close in place of the kit's macOS traffic lights.
+   They sit flush in the top-right corner and span the full titlebar height,
+   which is why the container cancels the titlebar's right padding. */
+.wincontrols {
+  display: flex;
+  margin-left: auto;
+  align-self: stretch;                      /* full --h-titlebar height */
+  margin-right: calc(var(--sp-3) * -1);     /* cancel .titlebar's right padding */
+}
+.wc {
+  width: 46px;
+  display: grid; place-items: center;
+  padding: 0; border: 0;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: background var(--t-med) var(--ease), color var(--t-med) var(--ease);
+}
+.wc:hover  { background: var(--bg-hover); color: var(--fg); }
+.wc:active { background: var(--bg-active); }
+/* Close going red on hover is the one Windows convention worth keeping; using
+   the kit's --err keeps it inside the token system rather than hardcoding the
+   shell's own red. */
+.wc.close:hover  { background: var(--err); color: var(--on-accent); }
+.wc.close:active { background: var(--err); filter: brightness(0.9); }
+.wc svg { width: 10px; height: 10px; }
+
+/* ---- Editable editor -----------------------------------------------------
+   The kit's .editor is display-only: a gutter plus pre-formatted .ln spans.
+   To actually type, a transparent textarea is laid exactly over the
+   highlighted layer. Both must share identical metrics or the caret drifts
+   from the glyphs, so every font/spacing value here is taken from the same
+   tokens .code uses. */
+/* The kit's .editor is `overflow: auto` because its editor is display-only and
+   scrolls as one block. Ours has a textarea that scrolls itself, which left two
+   competing scrollers: the gutter rode the outer one while the text rode the
+   inner one, so the line numbers drifted out of step with the code and the
+   highlighted layer got clipped at the viewport edge.
+   The textarea is now the only scroller; .code and .gutter are driven from its
+   scrollTop in syncScroll(). */
+.editor { overflow: hidden; }
+.gutter { overflow: hidden; }
+
+.code-stack { position: relative; flex: 1; min-width: 0; }
+
+/* The highlighted layer keeps the kit's own metrics untouched: .code supplies
+   the vertical padding (--sp-3) and each .ln supplies the 20px horizontal.
+   The textarea must therefore pad 12px/20px to land on the same grid. */
+.code-stack .code {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;           /* the textarea scrolls; this layer follows it */
+  pointer-events: none;       /* the textarea above owns the mouse */
+}
+
+.code-stack .code-input {
+  position: absolute;
+  inset: 0;
+  /* border-box is load-bearing: the kit doesn't set it on form elements, so
+     with content-box the 12px vertical padding was ADDED to inset:0, making the
+     textarea 24px taller than .code and .gutter (measured: 493 vs 469). Same
+     scrollTop, different client height -- so at the bottom of a scroll the
+     caret sat below the highlighted text and the last line looked clipped with
+     a dark band under it. */
+  box-sizing: border-box;
+  font-family: var(--mono);
+  /* The SAME variable .editor uses, not the raw token. .code and .gutter
+     inherit their size from .editor, so hardcoding it here meant the Font
+     size setting scaled the glyphs and the line numbers while leaving the
+     textarea -- and therefore the caret -- at the original metric. */
+  font-size: var(--set-editor-font, var(--fs-xl));
+  line-height: var(--lh-code);
+  padding: var(--sp-3) 20px;
+  white-space: pre;
+  /* Must match .editor's. A literal tab rendered 8 wide in the highlight
+     layer and 4 wide here would separate the caret from the text on any file
+     containing one. */
+  tab-size: var(--set-tab-size, 4);
+  border: 0;
+  margin: 0;
+  resize: none;
+  outline: none;
+  overflow: auto;
+  background: transparent;
+  color: transparent;         /* glyphs come from the highlighted layer */
+  caret-color: var(--fg);
+  -webkit-app-region: no-drag;
+}
+
+.code-stack .code-input::selection { background: var(--accent-soft); }
+
+/* The three layers must have IDENTICAL geometry or they drift apart.
+   .code and .gutter are overflow:hidden and reserve nothing, but the textarea
+   was overflow:auto — so as soon as a line was long enough to need a horizontal
+   scrollbar it lost 10px of height that the other two kept. Scrolled to the
+   bottom that showed up as a clipped last line with a dark band under it, and
+   a gutter number the code no longer lined up with.
+   Hiding the textarea's scrollbars removes the reserved space; wheel and
+   keyboard scrolling are unaffected, and the gutter already shows position. */
+.code-stack .code-input { scrollbar-width: none; }
+.code-stack .code-input::-webkit-scrollbar { width: 0; height: 0; }
+
+/* NO OVERSCROLL BOUNCE, and this is a three-layer alignment fix rather than a
+   nicety.
+   Slam the wheel into either end and Chromium elastically translates the
+   scroller's content past its limit and springs it back. Only the TEXTAREA is a
+   scroller, so only its glyphs and its selection rectangles bounce -- the
+   highlighted layer and the gutter, which are positioned rather than scrolled,
+   stay exactly where they were. The two visibly part company, and holding the
+   gesture holds them apart.
+   No JS can follow it: scrollTop is already clamped at the limit and does not
+   move during the bounce, so a sync driven from scrollTop sees nothing at all.
+   Chasing it with a transform fails for the same reason. Removing the bounce is
+   the only thing that keeps the layers together. */
+.code-stack .code-input { overscroll-behavior: none; }
+
+/* ---- Kit fix: collapsing the console made it unrecoverable ---------------
+   The kit's `.console.collapsed { height: 0 }` collapses the whole panel --
+   including its head, which is the only thing you can click to bring it back.
+   The head then overflows into the bottombar's space and is painted over, so
+   there is nothing left to hit and the logs are gone for good.
+   Collapse to the head's height instead, and clip the body. */
+.console.collapsed {
+  height: var(--h-console-head);
+  overflow: hidden;
+}
+.console-head { cursor: pointer; }
+
+/* ---- Kit fix -------------------------------------------------------------
+   .script-meta's children are <span>s carrying block-only properties
+   (text-overflow: ellipsis on .script-name, margin-top on .script-sub), so
+   they lay out inline and the name runs into the sub-line. Stacking them is
+   plainly what the styling intends. Fixed here rather than in components.css
+   so the vendored kit stays untouched. */
+.script-meta { display: flex; flex-direction: column; }
+
+/* ---- Snippet rows: the kit's .script-row, plus a dirty marker ---------- */
+.script-row .dirty-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent);
+  margin-left: auto;
+  flex: none;
+}
+
+/* A live run: a soft green pulse dot on the row's icon, and its name lit. Uses
+   the icon as the anchor so it never collides with the dirty dot (which sits at
+   margin-left:auto on the far side). "stopping" desaturates it to amber and
+   halts the pulse -- the run has been asked to stop and may be wedged. */
+.script-row.running .script-ico { position: relative; color: var(--ok, #4caf50); }
+.script-row.running .script-ico::after {
+  content: ""; position: absolute; top: -1px; right: -1px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ok, #4caf50);
+  box-shadow: 0 0 0 2px var(--bg-panel, #16161b);
+  animation: runpulse 1.4s ease-in-out infinite;
+}
+.script-row.running .script-name { color: var(--fg, #e8e8ea); }
+.script-row.running.stopping .script-ico,
+.script-row.running.stopping .script-ico::after { color: #d9a441; background: #d9a441; }
+.script-row.running.stopping .script-ico::after { animation: none; }
+@keyframes runpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ---- Sidebar selection ---------------------------------------------------
+   Three independent marks that can all land on one row, so none of them may
+   reuse another's channel:
+     .active    open in the editor  -> the kit's 2px accent rail (::before)
+     .selected  what a bulk action would hit -> an accent tint
+     .cursor    where the arrow keys are -> an outline
+   The tint is deliberately not --bg-active: that is .active's colour, and a
+   row can be selected without being open. */
+.script-row.selected,
+.group-head.selected {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.script-row.selected:hover,
+.group-head.selected:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+/* The keyboard cursor is a MODIFIER, never a mark in its own right.
+   It renders only on a row that ALREADY carries one of the other two marks,
+   which is what makes a stray ring impossible rather than merely unlikely.
+   Chasing it as a state bug did not work: it leaked from several directions at
+   once -- arrowing onto a group header clears the selection but keeps the
+   cursor, and the blur handler deliberately does nothing while a context menu
+   is open, so closing that menu left one behind. Every one of those was a
+   separate fix. Requiring a companion mark is one rule that covers all of them
+   and any path added later.
+   Also gated on the list having focus, because the ring answers "where will
+   the arrow keys go" and that has no meaning when the keyboard is in the
+   editor.
+   Dotted and neutral rather than accent: in this list the accent means the
+   file you are working with, and where the keyboard happens to be is a
+   quieter, different kind of thing. */
+#snippetList:focus .script-row.selected.cursor,
+#snippetList:focus .group-head.cursor {
+  outline: 1px dotted var(--fg-mut);
+  outline-offset: -2px;
+}
+/* On the OPEN row the rail already says it unmistakably, so the ring is just
+   noise fighting for the same edge. Same specificity as the rule above and
+   placed after it, which is what lets it win. */
+#snippetList:focus .script-row.active.cursor { outline: none; }
+#snippetList:focus { outline: none; }   /* the cursor row carries the focus cue */
+
+/* Rubber band. Anchored to .side-scroll -- the element that actually scrolls
+   and the one that owns the empty space below the last row. Positioning it
+   against #snippetList put it in the wrong box and left it clipped to the
+   rows, which is why it seemed to vanish over a group header.
+   z-index clears .script-row, which is position:relative for its accent rail
+   and would otherwise paint over the band. */
+.side-scroll { position: relative; }
+.sel-band {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;          /* never steals the mouseup that ends it */
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 2px;
+}
+
+/* ---- Snippet reordering -------------------------------------------------- */
+/* The drag ghost: a clone of the picked-up row, fixed under the cursor. A
+   real element, not a browser snapshot -- this is a pointer drag, so it can
+   be styled, follows the cursor exactly, and carries the count badge.
+   pointer-events:none so it never sits between the pointer and anything. */
+.drag-clone {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: .85;
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
+}
+
+/* Count badge on a multi-row ghost -- without it the clone pictures only the
+   row the pointer went down on, which reads as though the rest were being
+   left behind. */
+.drag-count {
+  position: absolute; top: -7px; right: -7px;
+  min-width: 18px; height: 18px;
+  display: grid; place-items: center;
+  padding: 0 5px;
+  background: var(--accent);
+  color: var(--bg-2);
+  border-radius: 9px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* The picked-up rows dim in place. Feasible now where the HTML5 drag made it
+   a mess (the browser snapshot baked the class into its ghost, and a spring
+   re-render dropped it): the ghost is cloned before this class lands, and
+   the dim is repainted from NAMES on every recompute, so a mid-drag rebuild
+   just gets painted over. */
+.drag-src { opacity: .35; }
+
+/* No grab/grabbing cursor. The hand reads as "this is a handle you pull",
+   which a file row is not -- Explorer keeps the ordinary pointer and lets the
+   drag ghost and the insertion rail carry the feedback instead. Rows keep the
+   kit's `pointer`, because they are still click-to-open. (Settable at all
+   only because this is not a native drag; the block cursor is gone with the
+   dropEffect that drew it.) */
+/* An accent rail on the edge the row would land against. Group headers take
+   it too: their outer thirds reorder the folder among its siblings, while the
+   middle stays a drop-INTO target. */
+.script-row.drop-before,
+.group-head.drop-before { box-shadow: inset 0 2px 0 0 var(--accent); }
+.script-row.drop-after,
+.group-head.drop-after  { box-shadow: inset 0 -2px 0 0 var(--accent); }
+
+/* ---- Palette rows carry an offset value on the right ------------------- */
+.palette-item .off-val {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Armed state ---------------------------------------------------------
+   Arming is the one destructive affordance in the app, so it gets the only
+   semantic colour outside the console: the kit reserves --err for exactly
+   this kind of signal. */
+.btn.armed {
+  color: var(--err);
+  border-color: var(--err);
+  background: transparent;
+}
+.attached.armed { color: var(--err); }
+
+/* ---- Context menu --------------------------------------------------------
+   The kit has no menu component, so this is built from its tokens to match the
+   palette: same surface, border, radius and shadow. */
+.ctx {
+  position: fixed;
+  z-index: 80;
+  min-width: 184px;
+  padding: 5px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  box-shadow: var(--shadow-palette);
+  display: none;
+  font-size: var(--fs-xl);
+}
+.ctx.open { display: block; }
+
+.ctx-item {
+  display: flex; align-items: center;
+  gap: var(--sp-2);
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  color: var(--fg-mut);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ctx-item:hover { background: var(--bg-hover); color: var(--fg); }
+.ctx-item.danger { color: var(--err); }
+.ctx-item.danger:hover { background: rgba(224, 104, 95, 0.12); color: var(--err); }
+.ctx-item .hint {
+  margin-left: auto; padding-left: 20px;
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+}
+.ctx-sep { height: 1px; margin: 4px 8px; background: var(--line-soft); }
+
+/* The no-file-open hint, centred over the editor. .editor-wrap is already
+   position:relative, so it anchors there and stops short of the console.
+   The [hidden] rule is load-bearing: display:flex would otherwise beat the
+   attribute's own display:none and the note would never go away. */
+.editor-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-4);
+  text-align: center;
+  pointer-events: none;
+}
+.editor-empty[hidden] { display: none; }
+.editor-empty .ee-title { color: var(--fg-dim);   font-size: var(--fs-lg); }
+.editor-empty .ee-sub   { color: var(--fg-faint); font-size: var(--fs-sm); }
+
+/* The titlebar mark is the REAL icon file, not a CSS re-creation of it.
+   web/icon.png is the same artwork compiled into the exe, so the mark in the
+   window and the one on the taskbar cannot drift apart -- which they would,
+   because the kit approximates it with a radial-gradient and every future
+   tweak to the artwork would have to be hand-ported into that rule.
+   256px downscaled to 20 stays sharp well past 300% DPI. */
+.monogram {
+  background: url("icon.png") center / contain no-repeat;
+  border-radius: 0;      /* the artwork carries its own corners */
+  box-shadow: none;      /* and has no hairline, unlike the kit's version */
+}
+
+.empty-note {
+  padding: var(--sp-4) var(--sp-3);
+  color: var(--fg-faint);
+  font-size: var(--fs-base);
+  line-height: var(--lh-ui);
+}
+
+/* ---------------------------------------------------------------------------
+   Bottom-bar status, narrow windows.
+
+   The kit pins .status-cluster to the right and lets it overflow. At the 900px
+   minimum the DataModel readout was pushed clean off the edge -- not wrapped,
+   not hidden, just gone, with "offsets 394" left flush against the border. A
+   readout that silently truncates is worse than one that isn't there, because
+   you cannot tell which you are looking at.
+
+   So drop fields deliberately, least useful first, keeping whatever remains
+   whole. pid goes first and costs nothing: the attached pill in the bottom left
+   already says "attached - pid 31848". DataModel is kept longest, since it is
+   the one field that says the tool is actually working.                       */
+@media (max-width: 1100px) { .status-cluster .s-pid  { display: none; } }
+@media (max-width: 1000px) { .status-cluster .s-base { display: none; } }
+@media (max-width:  940px) { .status-cluster .s-off  { display: none; } }
+
+/* Below this even the DataModel address will not fit beside the buttons. Keep
+   the word, drop the pointer -- "DataModel" alone still answers the question
+   the readout exists to answer. */
+@media (max-width: 880px) {
+  .status-cluster .attached { max-width: 130px; overflow: hidden;
+                              text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ---------------------------------------------------------------------------
+   Resize grips.
+
+   Needed because the window is frameless AND WebView2 parents a child window
+   over the whole client area: with no non-client area left, every edge pixel
+   belongs to that child, so the parent's WM_NCHITTEST never runs and dragging
+   an edge did nothing whatsoever.
+
+   6px matches the kBorder the host used to hope for. The corners are 12px,
+   because a 6px square corner is genuinely hard to hit.                       */
+.resizers { position: fixed; inset: 0; z-index: 9000; pointer-events: none; }
+.resizers > div { position: absolute; pointer-events: auto; }
+
+/* 8px, matching the width Windows uses for an ordinary window's resize border.
+   These reach INWARDS only. A normal window's window rect extends past its
+   visible edge, which is why the cursor can sit slightly outside one and still
+   resize; this window has no such margin, because WM_NCCALCSIZE returns 0 and
+   the client area IS the window rect.
+
+   Giving it a real frame to get that margin back was tried and reverted: DWM
+   composites the left, right and bottom strips transparently but the TOP one
+   opaquely, so the top always came back as a painted band above the titlebar.
+   Nothing switches that off -- not dropping WS_CAPTION, not suppressing
+   WM_NCPAINT, not tinting DWMWA_CAPTION_COLOR. Inward-only on all four edges is
+   at least consistent.
+
+   Corners are 10px, not the 16px they started at. Probing a real sizable
+   window's WM_NCHITTEST shows its diagonal zone reaching dx=19 along the top
+   edge but only dy=9 down the side -- so a 16px square was nearly twice as tall
+   as the native one, and the diagonal cursor appeared well before you had got
+   anywhere near the corner. 10px keeps the corner easy to hit while staying
+   close to what Windows does. */
+.resizers > [data-edge="T"]  { top: 0; left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+.resizers > [data-edge="TL"] { top: 0; left: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+.resizers > [data-edge="TR"] { top: 0; right: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+
+/* Maximised there is nothing to drag, and leaving live grips there would put
+   resize cursors on the edges of a window that cannot resize -- and steal the
+   top-left 12px from the app icon. */
+body.zoomed .resizers { display: none; }
+
+/* The top-right corner grip is 12px square and the close button's top edge
+   reaches into it, so a click on the very top of the X would have started a
+   resize instead of closing. The buttons win. */
+.wincontrols { position: relative; z-index: 9001; }
+
+/* ---------------------------------------------------------------------------
+   Native non-client regions.
+
+   With IsNonClientRegionSupportEnabled set on the WebView2 settings, these tell
+   Windows which parts of the page ARE the titlebar. That gets us the real
+   thing rather than an imitation: dragging moves the window, double-click
+   maximises and restores, right-click opens the system menu, and Alt+Space
+   works - none of which the JS SC_MOVE fallback could do.
+
+   Every interactive child has to opt back out, or the whole strip is a
+   titlebar and the buttons underneath never see a click.                      */
+.titlebar { -webkit-app-region: drag; app-region: drag; }
+
+.titlebar .wincontrols,
+.titlebar .wincontrols *,
+.titlebar .cmdk,
+.titlebar .cmdk *,
+.titlebar button,
+/* CHILDREN TOO. app-region does not inherit, so a button marked no-drag whose
+   entire visible surface is an <svg> is still a drag region everywhere you
+   would actually click it -- the button reports no-drag, the icon on top of it
+   reports drag, and the icon wins because it is what the pointer is over.
+   That is why .cmdk needed its own `*` rule, and why the settings gear did
+   nothing at all until this line covered it. */
+.titlebar button *,
+.titlebar input {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Only the strips, NOT their container.
+   .resizers is position:fixed inset:0 -- it covers the entire window. Marking
+   IT no-drag marked the whole window no-drag, titlebar included, which is why
+   the titlebar had no system menu even with the setting confirmed on.
+   pointer-events:none does not save you here: draggable regions are computed
+   from the layout tree, not from hit-testing.
+   DOM ORDER MATTERS, and z-index does not substitute for it. Where a drag and
+   a no-drag region overlap, the one LATER in the tree wins -- which is why
+   #resizers sits near the end of the body, after .titlebar. Moved above it,
+   the grips still PAINT on top (z-index 9000 beats 150) and still lose the
+   region, leaving a top edge that looks grabbable and is not. Painting order
+   and region order are separate things. */
+.resizers > div { -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* All three window controls stay no-drag so the page keeps their clicks and
+   their :hover. #winZoom was briefly made a drag region to chase Snap Layouts;
+   that needs HTMAXBUTTON from a WM_NCHITTEST the host never receives (WebView2
+   implements caption behaviour itself rather than delegating it), and it broke
+   the button, since a drag region swallows the click that maximises. */
+.titlebar .wincontrols,
+.titlebar .wincontrols * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* ---------------------------------------------------------------------------
+   Snippet groups.
+
+   A group is a subdirectory of snippets/, rendered as a collapsible header with
+   its members indented under it. Deliberately a TREE, not a folder you navigate
+   into: every code editor's file pane works this way, because entering a folder
+   costs you the context of everything else and buys back/up affordances you did
+   not need. Drilling in only pays off when the tree is too big to show, which a
+   snippet sidebar never is.                                                    */
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  cursor: pointer;
+  color: var(--fg-dim);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.group-head:hover { color: var(--fg); background: var(--bg-hover); }
+
+
+/* A row carries EITHER a caret (group) or a folder (project), never both, so
+   the two slots share a width -- otherwise the names would sit 6px apart
+   depending on which kind of row you were looking at. The glyph inside stays
+   caret-sized; it is the box that matches. */
+.group-caret {
+  display: grid;
+  place-items: center;
+  width: 18px; height: 18px; flex: none;
+  transition: transform var(--t-med) var(--ease);
+  transform: rotate(90deg);              /* open: pointing down */
+}
+.group-head.collapsed .group-caret { transform: rotate(0deg); }
+.group-caret svg { width: 12px; height: 12px; }
+
+.group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Indent comes from renderNode as an inline padding-left, because it depends on
+   depth and groups nest arbitrarily. */
+
+/* ---- Nested groups ------------------------------------------------------- */
+
+/* The + on a group header. Hidden until the row is hovered, so a column of
+   plus signs doesn't compete with the group names for attention. */
+.group-add {
+  margin-left: auto;
+  /* A bare "+" glyph is about 8px wide, which is a miserable thing to aim at --
+     miss by a couple of pixels and you collapse the group instead. Give it a
+     real box and centre the glyph in it. The negative right margin lets that box
+     use the header's own padding rather than pushing the layout around. */
+  width: 22px;
+  height: 18px;
+  margin-right: calc(var(--sp-1) * -1);
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-base);
+  line-height: 1;
+  color: var(--fg-faint);
+  opacity: 0;
+  transition: opacity var(--t-med) var(--ease), color var(--t-med) var(--ease),
+              background var(--t-med) var(--ease);
+}
+.group-add:hover { background: var(--bg-active); }
+.group-head:hover .group-add { opacity: 1; }
+.group-add:hover { color: var(--accent); }
+
+/* "drop here to move INTO this group" — a filled tint, deliberately different
+   from the drop-before/drop-after rails used for reordering. Two different
+   outcomes should not look the same. */
+.drop-into {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  border-radius: var(--r-sm);
+}
+
+/* Placeholder inside an expanded group with nothing in it. Without this an
+   empty group would render as a header with a void under it and no way to tell
+   whether it was empty or just collapsed. */
+.group-empty {
+  padding-top: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+  font-style: italic;
+}
+
+/* The snippet list doubles as the "move to root" drop target, so it has to
+   reach the bottom of the sidebar. The kit sizes .scripts to its content, which
+   left the empty space below the last row belonging to nobody -- dragging a
+   snippet out of a group had no target to land on. */
+.side-scroll { display: flex; flex-direction: column; }
+.scripts { flex: 1 1 auto; min-height: 80px; }
+
+/* Same treatment as the textarea, for the same reason: a classic scrollbar is
+   part of the layout, not drawn over it, so the rows reflowed to a narrower
+   width the moment the list outgrew the panel -- names re-ellipsised and the
+   whole sidebar twitched on every add, delete or expand.
+   Hiding it costs the only hint that there is more below, which the editor does
+   not pay because its gutter shows position. The rows are cheap to scan and the
+   wheel still works, so the twitch was the worse of the two. */
+.side-scroll { scrollbar-width: none; }
+.side-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+/* ---- Directory focus: the breadcrumb ------------------------------------
+   The tree can be drawn from one folder instead of from the root. This bar is
+   what stops that reading as "my files are gone" -- it is the only thing on
+   screen that explains a short tree, which is also why the focus is safe to
+   persist across restarts. */
+/* Two rows: the path, then the controls. The path is the half that grows, so
+   it wraps on its own line instead of shoving the arrows onto a second one. */
+.crumbs {
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: 2px;
+  padding: 0 2px 6px;
+  font-size: var(--fs-sm);
+  color: var(--fg-mut);
+}
+.crumbs[hidden] { display: none; }   /* beats the display:flex above */
+
+.crumb-path, .crumb-row {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 1px;
+}
+/* Where the tree lives, not a folder in it -- so it reads as context: no
+   hover, no pointer, no drop target. */
+.crumb-home {
+  padding: 1px 2px;
+  opacity: 0.7;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.crumb-nav {
+  /* Sized off the glyph rather than the row: at the crumb text size the arrow
+     head was a couple of pixels of stroke and read as a dash. These are the two
+     most-used controls in the bar, so they get to be the biggest thing in it. */
+  width: 21px; height: 21px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+.crumb-nav:hover { background: var(--bg-hover); color: var(--fg); }
+/* Kept in place rather than removed when there is no history: buttons that
+   come and go make the row jump, and the row sits right above the list. */
+.crumb-nav.off { opacity: 0.25; cursor: default; }
+.crumb-nav.off:hover { background: transparent; color: inherit; }
+
+.crumb {
+  padding: 1px 4px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.crumb:hover { background: var(--bg-hover); color: var(--fg); }
+/* The last segment is where you already are, so it is a label, not a link --
+   but it stays a drop target, which is why it still takes .drop-into. */
+.crumb.here { color: var(--fg); font-weight: 600; cursor: default; }
+.crumb.here:hover { background: transparent; }
+.crumb-sep { opacity: 0.4; flex: none; }
+
+/* Tint the whole list when it is the drop target, rather than only the rows,
+   so "drop here for the root" is legible in the empty area too. */
+/* NO drop indicator on the LIST itself -- not a border, not a tint.
+   Three attempts, each worse than the last:
+     - .drop-into's inset border (the shared rule, which #snippetList also
+       matches) drew around the CONTENT, taller than the pane, so it read as a
+       stray rectangle everywhere except scroll-top;
+     - framing .side-scroll via :has() left BOTH frames up, because the shared
+       border had never actually been turned off -- overriding `background`
+       alone does not remove a `box-shadow`;
+     - tint-only still painted a slab over half the list.
+   The group headers and rows carry their own drop marks, which is where the
+   answer to "where will this land" actually belongs. The whole-list target
+   needs no paint of its own. */
+#snippetList.drop-into { background: none; box-shadow: none; }
+
+/* ---- Projects ------------------------------------------------------------
+   A group whose folder holds a .project marker: its .cpp files are compiled and
+   linked together into ONE runnable, rather than being independent snippets.
+   Marked visibly, because "what does Run do here" must not depend on something
+   invisible. */
+.group-head.is-project .group-name { color: var(--accent); }
+
+/* Unlike the +, this one is always visible: it is the primary action on a
+   project, not an afterthought. */
+.group-run {
+  margin-left: var(--sp-2);
+  width: 20px; height: 18px;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--accent);
+  font-size: 9px;
+}
+.group-run:hover { background: var(--bg-active); }
+/* The trailing controls sit right, in markup order: run then add.
+   Driven by the NAME taking the free space rather than by margin-left:auto on
+   the controls -- with auto on only one of them, whichever came first ended up
+   stranded next to the name. That is what put the + on the left of a project
+   header: a leftover rule from when a PROJECT badge lived there. */
+.group-name { flex: 1 1 auto; min-width: 0; }
+.group-add, .group-run { margin-left: 0; flex: none; }
+
+/* Headers are editable but not runnable, so they read one step quieter than the
+   .cpp files around them -- enough to tell them apart at a glance without
+   turning the sidebar into a legend. */
+.script-row.is-header .script-name { color: var(--fg-dim); }
+.script-row.is-header .script-ico  { opacity: 0.55; }
+
+/* ---- Sidebar density -------------------------------------------------------
+   The kit sizes these for a wider pane. Tightened so a tree with a few nested
+   groups fits without scrolling: the icon and the sub-line lose the most,
+   because the FILENAME is the thing being scanned and it keeps its size. */
+/* Snippet rows are left ALONE -- these are the kit's own sizes, and every
+   attempt to shave them read as cramped. The wasted vertical space was never
+   the rows; it was the group headers below, which were inheriting generic
+   label padding. */
+
+/* Group headers: a folder icon, normal case, and the same tighter rhythm.
+   Dropping the uppercase is deliberate -- letter-spaced capitals cost width a
+   narrow sidebar does not have, and a nested path is easier to read as it was
+   typed. */
+.group-head {
+  padding-top: 6px; padding-bottom: 6px;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  /* Matches .script-name (--fs-lg). It was --fs-base, which made a group header
+     SMALLER than the files under it -- backwards for a header, and most of what
+     read as the sidebar being shrunk. The weight is what separates it now that
+     the letter-spaced capitals are gone. */
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-medium);
+  color: var(--fg-mut);
+}
+.group-ico {
+  display: grid; place-items: center;
+  width: 18px; height: 18px; flex: none;
+  color: var(--fg-dim);
+}
+.group-ico svg { width: 17px; height: 17px; }
+.group-head:hover .group-ico { color: var(--fg); }
+.group-head.is-project .group-ico { color: var(--accent); }
+.group-caret { width: 18px; height: 18px; }
+.group-caret svg { width: 12px; height: 12px; }
+.group-add { width: 18px; height: 16px; }
+.group-run { width: 16px; height: 16px; }
+
+/* ---- Tabstrip: close button and "new" ------------------------------------
+   The kit styles .tab .close but never rendered one, and had no add button.
+   Both exist now; .tab-add borrows the tab's own metrics so it reads as the
+   next cell in the strip rather than a floating icon. */
+.tab .close svg { width: 9px; height: 9px; }
+
+.tab-add {
+  display: grid; place-items: center;
+  width: 38px;
+  flex: none;
+  cursor: pointer;
+  color: var(--fg-faint);
+  border-right: 1px solid var(--line-soft);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.tab-add:hover { color: var(--fg-mut); background: var(--bg-2); }
+.tab-add svg { width: 12px; height: 12px; }
+
+/* ---- Tab strip: equal widths that shrink together, then scroll ----------
+   The kit sizes each tab to its own content inside an overflow:hidden strip,
+   which past a dozen files does not overflow so much as SWALLOW them -- the
+   extras are clipped with no way to reach them, because there was never a
+   scroll to reach them with.
+
+   flex:1 1 0 makes every tab claim an equal share of the strip instead, so
+   they shrink together as more open and every close button sits on the same
+   even grid. min-width is where shrinking stops and scrolling begins. */
+.tabstrip {
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* No visible scrollbar: the strip is only 40px tall and a horizontal bar
+     would eat a quarter of it. Wheel-scrolling is wired up in app.js. */
+  scrollbar-width: none;
+}
+.tabstrip::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Two numbers decide the whole behaviour:
+     190px  the width a tab WANTS, and keeps while there is room
+     150px  the floor -- once every tab is this narrow, the strip scrolls
+   flex-basis is the preferred width and grow is 0, so tabs never stretch to
+   fill an empty strip: three tabs look like three tabs, not three thirds.
+   They only begin to shrink once they would collectively overflow, and they
+   shrink together, so the close buttons stay on an even grid.
+   The floor is deliberately high. Letting them shrink much further trades a
+   readable name for a few more tabs on screen, and past that point the strip
+   is a row of ellipses -- scrolling a legible strip beats squinting at all
+   of it, which is the trade Notepad makes too. */
+.tab {
+  flex: 0 1 var(--set-tab-max, 190px);
+  min-width: var(--set-tab-min, 150px);
+  max-width: var(--set-tab-max, 190px);
+}
+
+/* Editor text size, driven from Settings. The fallback keeps the kit's own
+   value if the settings have not loaded yet, so nothing depends on ordering. */
+/* .code and .gutter inherit both of these; the textarea sets them to the same
+   variables explicitly. All four layers must agree or the caret leaves the
+   glyphs behind. */
+.editor {
+  font-size: var(--set-editor-font, var(--fs-xl));
+  tab-size: var(--set-tab-size, 4);
+}
+/* The name takes all the slack, which is what pins the close button to the
+   RIGHT EDGE. Without flex-grow the row sizes to its content and the whole
+   lot clusters at the left, leaving the X floating mid-tab -- and the even
+   grid of close buttons was the point of equal widths.
+
+   min-width:0 is the other half: a flex item defaults to min-width:auto and
+   refuses to shrink below its own text, so the name would push the tab wide
+   instead of ellipsising, and the equal-share sizing would never engage. */
+.tab .tname { flex: 1 1 auto; min-width: 0; }
+/* Never let the button itself be the thing that shrinks. */
+.tab .close { flex: none; }
+
+/* ---- name prompt -------------------------------------------------------
+   Overrides on the shared .palette-overlay shell, scoped to .prompt-overlay
+   so the command palette and the candidate picker keep their own placement.
+
+   The kit anchors that shell to the top (align-items:flex-start + 90px of
+   padding) because the palette grows a long result list downwards and would
+   otherwise walk up the screen as you type. This prompt is one input that
+   never changes height, so top-anchoring just leaves it stranded high; it
+   centres instead.
+
+   Centring is on the OVERLAY, not the dialog: .palette animates its own
+   transform on open, so a translate-based centre would fight the keyframe. */
+.prompt-overlay {
+  align-items: center;
+  padding-top: 0;
+  /* Nudged up a touch -- dead centre reads low next to a titlebar. */
+  padding-bottom: 6vh;
+}
+.prompt-note {
+  padding: 9px var(--sp-4);
+  font-size: 12.5px;
+  color: var(--warn, #e0a860);
+  border-top: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--warn, #e0a860) 8%, transparent);
+}
+.prompt-note[hidden] { display: none; }
+
+/* ---- candidate picker --------------------------------------------------
+   Sits in the same .palette-overlay shell as the offset palette, so the
+   dim + centering come free. Rows are custom: they have to fit username,
+   display name, place, pid and monitor without wrapping. */
+.cand-head {
+  padding: 14px 18px 10px;
+  font-size: 12.5px;
+  color: var(--fg-mut);
+  border-bottom: 1px solid var(--line-soft);
+}
+.cand-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 12px 18px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line-soft);
+  transition: background var(--t-fast) var(--ease);
+}
+.cand-row:last-child { border-bottom: 0; }
+.cand-row:hover { background: var(--bg-2); }
+.cand-row.disabled { cursor: not-allowed; opacity: 0.55; }
+.cand-row.disabled:hover { background: transparent; }
+.cand-name  { font-weight: 600; color: var(--fg); font-size: 14px; }
+.cand-disp  { color: var(--fg-mut); font-weight: 500; margin-left: 6px; font-size: 12.5px; }
+.cand-place { color: var(--fg-faint); font-size: 12px; }
+.cand-meta  { color: var(--fg-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* Status bar dropdown: the "attached · pid N" text becomes clickable when
+   multiple candidates exist. Chevron on the right hints the click. */
+.attach-chip {
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  color: inherit;
+  transition: background var(--t-fast) var(--ease);
+}
+.attach-chip:hover { background: var(--bg-2); }
+.attach-chip .caret {
+  display: inline-block;
+  margin-left: 4px;
+  opacity: 0.55;
+  font-size: 10px;
+}
+
+
+/* ---- Settings modal ------------------------------------------------------
+   Built from kit components rather than from scratch: .palette-overlay and
+   .palette give the scrim, blur, border, radius, shadow and rise animation;
+   .palette-input is the search row; .nav/.nav-item is the category list;
+   .palette-sec the group headings; .icon-btn the close.
+
+   What is left here is only what the kit has no component for -- the two-pane
+   split and the shape of a settings ROW. Everything else is an override of a
+   kit value, scoped so the command palette and the name prompt keep theirs. */
+.settings-overlay {
+  /* The kit anchors this shell to the top for a growing result list. A fixed
+     two-pane box wants the height instead, same reasoning as .prompt-overlay. */
+  align-items: center;
+  padding-top: 0;
+  z-index: 60;
+}
+.settings-box {
+  width: 860px; max-width: calc(100% - 64px);
+  height: 560px; max-height: calc(100% - 80px);
+  display: flex; flex-direction: column;
+}
+
+.settings-body { flex: 1; display: flex; min-height: 0; }
+
+/* The kit's .nav is a bare flex column; it needs the pane around it. */
+.settings-cats {
+  flex: 0 0 178px;
+  border-right: 1px solid var(--line-soft);
+  padding: var(--sp-2);
+  overflow-y: auto;
+}
+/* Match counts, so a search says WHERE the hits are without clicking through
+   every category. */
+.settings-cats .n {
+  margin-left: auto;
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.settings-cats .nav-item.empty { opacity: 0.35; }
+
+.settings-list { flex: 1; overflow-y: auto; padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+
+/* One setting. Label and control on the first row, description under the
+   label -- so the controls line up in a column however long the text is. */
+.set-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px var(--sp-4);
+  align-items: start;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.set-row:last-child { border-bottom: 0; }
+
+/* EVERY cell placed explicitly. Leaving any of them to auto-placement put the
+   control in column 1 and the label in column 2: grid positions items with a
+   definite ROW before auto ones, so .set-ctl (grid-row 1 / span 2, no column)
+   was placed first and took the first free slot -- which was column 1. */
+.set-label { grid-column: 1; grid-row: 1; color: var(--fg); font-size: var(--fs-lg); }
+/* The description is the only explanation most settings get, and it is what
+   the search matches on, so it is styled to be read rather than hidden in a
+   tooltip. */
+.set-desc {
+  grid-column: 1; grid-row: 2;
+  color: var(--fg-faint);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+.set-ctl { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+
+.set-row input[type="number"],
+.set-row input.set-text {
+  padding: 5px 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font: inherit; font-family: var(--mono); font-size: var(--fs-base);
+  outline: none;
+}
+.set-row input[type="number"] { width: 92px; }
+.set-row input.set-text      { width: 220px; }   /* holds a flag string */
+/* An action row's button. .btn already carries the look; this only keeps it
+   from collapsing to its text width in a column otherwise sized by 92px number
+   fields, so the control column still reads as a column. */
+.set-row .set-action { min-width: 92px; white-space: nowrap; }
+
+.set-row input:focus { border-color: var(--accent); }
+.set-row input::placeholder { color: var(--fg-faint); }
+
+/* No spinner arrows. They are a 12px hit target for a value with a documented
+   range, they only ever step by one, and they crowd a field that is mostly
+   two or three digits. Typing and the min/max clamp cover it.
+   Both vendor forms are needed: WebKit hides the buttons, Firefox needs the
+   field told it is text-like. */
+.set-row input[type="number"]::-webkit-inner-spin-button,
+.set-row input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+.set-row input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+/* Booleans are a switch rather than a tick box. Still a real
+   <input type="checkbox"> underneath -- appearance:none only replaces the
+   PAINTING, so the label association, keyboard toggle and :checked state all
+   keep working; a div pretending to be a switch would lose all three.
+   Deliberately small (30x17, near the 15px the tick box occupied) so it reads
+   as a control in a dense list rather than the centrepiece of the row. */
+.set-row input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  margin: 0;
+  width: 30px; height: 17px;
+  flex: none;
+  position: relative;
+  border-radius: 999px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.set-row input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  transition: transform var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease);
+}
+.set-row input[type="checkbox"]:hover { border-color: var(--fg-dim); }
+.set-row input[type="checkbox"]:checked {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border-color: var(--accent);
+}
+.set-row input[type="checkbox"]:checked::after {
+  /* 30 - 2*1 border - 2*2 inset - 11 knob = 13 */
+  transform: translateX(13px);
+  background: var(--accent);
+}
+.set-row input[type="checkbox"]:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Shown only on a row that differs from its default, so "what have I changed"
+   is answerable at a glance -- and it doubles as the way back. */
+.set-reset {
+  margin-left: 8px;
+  background: none; border: 0; padding: 0;
+  color: var(--fg-faint);
+  font: inherit; font-size: var(--fs-sm);
+  cursor: pointer;
+  visibility: hidden;
+}
+.set-row.modified .set-reset { visibility: visible; }
+.set-reset:hover { color: var(--accent); }
+.set-row.modified .set-label::after {
+  content: "";
+  display: inline-block;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent);
+  margin-left: 7px; vertical-align: middle;
+}
+
+.settings-foot {
+  flex: none;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 10px var(--sp-4);
+  border-top: 1px solid var(--line-soft);
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+}
+.settings-foot .btn { margin-left: auto; }
+.set-empty { color: var(--fg-faint); padding: var(--sp-4) 0; }
+
+/* ---- Gear beside the offset search --------------------------------------
+   .cmdk centres itself in the titlebar with margin:0 auto, which works by
+   absorbing the free space on both sides -- so a bare sibling next to it
+   would push the search box off-centre. Grouping the two moves the auto
+   margin up to the group: the PAIR is centred, and the gear stays pinned to
+   the search box's left edge whatever the window width. */
+.cmdk-group {
+  /* TRUE CENTRE, not a balance. margin:0 auto only centres while whatever sits
+     either side happens to weigh the same -- which is why the gear was parked
+     in here in the first place, and why adding the arm chip on the right would
+     otherwise drag the search box left.
+     EQUAL FLEX SPACERS, not absolute positioning. Taking the group out of flow
+     centres it too, and was tried first, but it makes the search box a
+     positioned element floating over a titlebar whose whole surface is a
+     DRAG REGION -- and regions are computed from the layout tree, so anything
+     out of flow is a new way for the punch-outs to disagree with what you see.
+     .brand and .tb-right each take flex:1 of the leftovers, so the middle
+     lands centred with everything still in normal flow. */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+/* The two sides weigh the same, whatever they contain. min-width:0 so a long
+   wordmark shrinks instead of shoving the centre off. */
+.titlebar .brand { flex: 1 1 0; min-width: 0; }
+.cmdk-group .cmdk { margin: 0; }   /* the group centres now, not the box */
+
+/* The right cluster: state, then settings, then the window controls. Same
+   flex weight as .brand, contents pushed to its far end -- that is what
+   centres .cmdk-group between them. */
+.tb-right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  align-self: stretch;
+}
+/* THE CHILDREN, NOT THE CONTAINER. .tb-right is a flex:1 spacer covering the
+   right third of the bar, so marking IT no-drag took the window's whole right
+   grab area away -- the empty space beside the chip is meant to drag. Only
+   what you can click opts out. */
+.titlebar .tb-right * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+/* .wincontrols brings its own margin-left:auto, which inside this flex row
+   would shove it away from the gear. The cluster already sits right. */
+.tb-right .wincontrols { margin-left: var(--sp-1); }
+
+
+.cmdk-gear {
+  width: var(--h-cmdk); height: var(--h-cmdk);
+  flex: none;
+  display: grid; place-items: center;
+  padding: 0;
+  /* NO BOX AT REST. A bordered square around a single glyph competes with the
+     search field beside it for the same attention, and the titlebar ends up
+     reading as three controls of equal weight when only one of them is a
+     field. Bare glyph, chrome on hover only -- the affordance appears when the
+     pointer is there to use it. */
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: border-color var(--t-med) var(--ease),
+              background var(--t-med) var(--ease),
+              color var(--t-med) var(--ease);
+}
+/* Matches .cmdk's own hover exactly -- they read as one control, and a gear
+   that lit up differently would look like it belonged to something else.
+   The border is transparent rather than absent so the box does not GROW on
+   hover: the 1px is already in the layout, hover only colours it. */
+.cmdk-gear:hover { border-color: var(--line-strong); background: var(--bg-2); color: var(--fg); }
+.cmdk-gear svg { width: 15px; height: 15px; }
+
+
+/* ---- Minimap -------------------------------------------------------------
+   Overrides the kit's .minimap, which is a flex column of .mline divs -- one
+   node per line, rebuilt on every keystroke. This is a single canvas instead,
+   so file size stops mattering.
+
+   position:relative because the viewport box is absolutely positioned inside
+   it; it is a separate element so a scroll only has to move a div rather than
+   redraw the map. */
+.minimap {
+  flex: 0 0 62px;
+  display: block;                /* the kit's flex column no longer applies */
+  padding: 0;
+  gap: 0;
+  opacity: 1;                    /* the kit dims it; ours is a control */
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--bg-1);
+  border-left: 1px solid var(--line-soft);
+}
+.minimap[hidden] { display: none; }
+.minimap canvas { display: block; width: 100%; height: 100%; }
+
+/* What is on screen. Deliberately a light wash rather than an outline: an
+   outline on a 62px strip reads as another line of code. */
+.mm-view {
+  position: absolute;
+  left: 0; right: 0;
+  background: var(--wash-hover);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  pointer-events: none;          /* the strip below owns the drag */
+}
+.minimap:hover .mm-view { background: var(--bg-active); }
+
+/* ---- Export picker ------------------------------------------------------ */
+.set-title { color: var(--fg); font-size: var(--fs-lg); font-weight: var(--fw-medium); }
+.export-body { padding: var(--sp-3) var(--sp-4); display: flex; flex-direction: column; gap: 2px; }
+.export-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--fg-mut);
+}
+.export-row:hover { background: var(--bg-hover); color: var(--fg); }
+.export-name { font-size: var(--fs-lg); }
+/* The counts are why this dialog exists rather than three bare checkboxes --
+   "18 files, 345 KB" is the thing you actually want to know before sending. */
+.export-note { margin-left: auto; color: var(--fg-faint); font-size: var(--fs-sm); }
+.export-hint { color: var(--fg-faint); font-size: var(--fs-sm); flex: 1; }
+.settings-foot .btn + .btn { margin-left: 0; }
+/* Only the FIRST button takes the auto margin, or each one would push the
+   next and they would spread across the bar. */
+.settings-foot .btn:not(:first-of-type) { margin-left: var(--sp-2); }
+
+/* The export dialog opens FROM the settings modal, so it has to sit above it.
+   .settings-overlay raises itself to 60; without this the picker appeared
+   behind the thing that opened it and looked like nothing had happened. */
+.export-overlay { align-items: center; padding-top: 0; z-index: 70; }
+.export-box {
+  width: 520px; max-width: calc(100% - 64px);
+  max-height: calc(100% - 100px);
+  display: flex; flex-direction: column;
+}
+
+.export-listhead {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--line-soft);
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+.export-listhead .link-btn { margin-left: 0; text-transform: none; letter-spacing: 0; }
+.export-listhead .link-btn:first-of-type { margin-left: auto; }
+
+.export-list {
+  flex: 1; min-height: 90px; max-height: 300px;
+  overflow-y: auto;
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+}
+.export-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 7px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--fg-mut);
+  font-size: var(--fs-base);
+}
+.export-item:hover { background: var(--bg-hover); color: var(--fg); }
+.export-item.is-group { color: var(--fg); }
+/* Children sit under their folder. One level only -- nesting deeper than that
+   is rare and the indent would cost more width than it explains. */
+.export-item.child { padding-left: 27px; }
+.export-item .tag {
+  margin-left: auto;
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+}
+
+/* Offsets for a different client. The Run button is disabled and the arm
+   control is tinted with the error colour -- arming is what turns a wrong
+   offset from a bad read into a bad WRITE, so it should look wrong here even
+   though the host refuses regardless. */
+body.offsets-stale #btnRun { opacity: 0.45; cursor: not-allowed; }
+body.offsets-stale #btnArm { border-color: var(--err); color: var(--err); }
+
+/* ---- Find / replace ------------------------------------------------------
+   Floats top-right over the code. Deliberately not part of the editor's flow:
+   pushing the text down on open moves the line you were looking at, which is
+   the one thing you are certainly interested in. */
+.findbar {
+  position: absolute;
+  top: 8px; right: 78px;              /* clear of the minimap */
+  z-index: 30;
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  box-shadow: var(--shadow-palette);
+  padding: 6px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.findbar[hidden] { display: none; }
+
+.find-row { display: flex; align-items: center; gap: 5px; }
+.find-row > svg { width: 14px; height: 14px; color: var(--fg-faint); flex: none; }
+.find-row input {
+  width: 190px;
+  padding: 4px 7px;
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font-family: var(--mono); font-size: var(--fs-base);
+  outline: none;
+}
+.find-row input:focus { border-color: var(--accent); }
+/* A query that matches nothing is worth saying without a second glance. */
+.find-row input.none { border-color: var(--err); }
+
+.find-count {
+  min-width: 54px;
+  text-align: right;
+  color: var(--fg-faint);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.find-btn {
+  min-width: 24px; height: 24px;
+  padding: 0 5px;
+  display: grid; place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--fg-dim);
+  font: inherit; font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.find-btn:hover { background: var(--bg-hover); color: var(--fg); }
+.find-btn.wide { min-width: 58px; }
+/* The two option toggles latch, so they need a visibly held state rather than
+   just a hover. */
+.find-btn.find-toggle.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+/* Match marks live INSIDE the syntax spans, so they inherit the token colour
+   and only change the background -- a match in a comment stays comment-
+   coloured, which is how you keep reading the code while searching it. */
+.code .mt      { background: var(--accent-soft); border-radius: 2px; }
+.code .mt.cur  { background: var(--accent); color: var(--on-accent); }
+
+/* Edit menu trigger, right of the search box. Follows .cmdk-gear: no box at
+   rest, chrome on hover. The old rule gave it the gear's full border and fill
+   on the reasoning that a transparent button between two bordered ones reads
+   as unfinished -- true while the gear WAS bordered, and moot now that neither
+   is. The search field is the only thing in the row that draws a box, which is
+   right: it is the only thing that is a field.
+   No margin: .cmdk-group supplies the gap, and adding one here would break the
+   symmetry that keeps the search box centred. */
+.menu-btn {
+  height: var(--h-cmdk);
+  flex: none;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  color: var(--fg-dim);
+  font: inherit; font-size: var(--fs-base);
+  cursor: pointer;
+  /* The titlebar is a drag region. The mousedown fallback in app.js already
+     excludes this, but native non-client regions are enabled too and that path
+     reads app-region rather than our handler -- both have to agree or the
+     click starts a window move instead. */
+  -webkit-app-region: no-drag;
+}
+.menu-btn:hover { border-color: var(--line-strong); background: var(--bg-2); color: var(--fg); }
+.menu-btn.open  { border-color: var(--line-strong); background: var(--bg-active); color: var(--fg); }
+
+/* ---- Console splitter ---------------------------------------------------- */
+.hsplit {
+  height: 5px; flex: 0 0 5px;
+  cursor: ns-resize;
+  background: transparent;
+
+  /* NO LAYOUT SPACE. This used to be a real 5px row, and no colour could make
+     it disappear: the editor above has no background of its own so it shows
+     --bg-0, while the console below is --bg-1, and a single strip cannot match
+     both -- it read as a dark gap against one neighbour or the other. Painting
+     it --bg-1 just moved which side the seam was on.
+     The negative margin pulls it out of the flow so the console sits directly
+     under the editor, with the grip OVERLAYING the editor's last 5px. Upwards
+     specifically: index.html explains that a grip floating over the console
+     head would steal clicks from it, and the head is click-to-collapse. */
+  margin-top: -5px;
+  position: relative;
+  z-index: 3;
+
+  /* Hover-intent as a transition-delay rather than a JS timer. Leaving before
+     the delay elapses interrupts a transition that had not started painting,
+     so the line simply never appears -- no timer to cancel, nothing to leak,
+     and no state to get stuck lit if a pointerleave is ever missed. */
+  transition: background var(--t-fast) linear var(--set-split-delay, 300ms);
+}
+.hsplit:hover, .hsplit.dragging { background: var(--accent); }
+/* Both exits are immediate. Delaying them would leave the line lit under a
+   pointer that has already gone, which is the opposite of the problem being
+   solved; and during a drag the line is feedback, not an invitation. */
+.hsplit:not(:hover), .hsplit.dragging { transition-delay: 0s; }
+/* Collapsed there is nothing to size, and a resize cursor on an edge that
+   cannot move is a promise the UI does not keep. */
+.hsplit.off { cursor: default; pointer-events: none; }
+
+/* The console animates its height on collapse, which during a drag would make
+   it trail the pointer. Suppressed for the duration of the drag only. */
+.console.resizing { transition: none; }
+
+/* ---- Tab reorder rails --------------------------------------------------
+   Vertical twin of the sidebar's drop-before/drop-after, which are horizontal
+   because that list stacks downward. Same accent, same 2px, so the two
+   gestures read as one idea. .tab sets no box-shadow of its own and the active
+   underline is an ::after, so neither is disturbed. */
+.tabstrip { user-select: none; }
+
+/* The neighbours, sliding aside to open the slot. Only transform is animated:
+   it is compositor-only, so a strip full of tabs still moves at frame rate. */
+.tab.tab-slide { transition: transform var(--t-med) var(--ease-spring); }
+
+/* The dragged tab must track the pointer 1:1 -- any transition here turns
+   into visible lag against the cursor. It is raised instead, so it passes
+   over its neighbours rather than through them. */
+.tab.tab-dragging {
+  transition: none;
+  z-index: 2;
+  color: var(--fg);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-palette);
+}
+/* Cancels the .tab-dragging rule above for the settle only: once the pointer
+   is gone there is nothing left to track, and the last few pixels into the
+   open slot should be travelled rather than jumped. */
+.tab.tab-settling { transition: transform var(--t-med) var(--ease-spring); }
+
+/* The active tab's accent underline is an ::after on the tab itself, so it
+   travels with the drag and stays attached to the file rather than to the
+   slot -- which is what you want while the slots are moving. */
+.tabstrip.reordering .tab { cursor: default; }
+
+/* ---- Sidebar splitter ----------------------------------------------------
+   The kit fixes .sidebar at 208px. Routed through a variable so the drag and
+   the setting both have one thing to write, and so the default still comes
+   from the kit's own number rather than a second copy of it. */
+.sidebar { width: var(--set-sidebar-w, 208px); flex: 0 0 var(--set-sidebar-w, 208px); }
+
+.vsplit {
+  width: 5px; flex: 0 0 5px;
+  cursor: ew-resize;
+  background: transparent;
+  /* Same as .hsplit, and for the same reason: the sidebar is --bg-1 and the
+     editor beside it is --bg-0, so any colour here is a seam against one of
+     them. Pulled out of the flow and overlaid on the EDITOR's first 5px --
+     that side is the gutter, where a stray click costs nothing, whereas the
+     sidebar's edge is a list of snippets you are trying to hit. */
+  margin-right: -5px;
+  position: relative;
+  z-index: 3;
+  transition: background var(--t-fast) linear var(--set-split-delay, 300ms);
+}
+.vsplit:hover, .vsplit.dragging { background: var(--accent); }
+.vsplit:not(:hover), .vsplit.dragging { transition-delay: 0s; }
+
+/* The sidebar has no width transition to fight, but the editor and minimap
+   relayout on every frame of the drag; this keeps that from animating. */
+.body.resizing * { transition: none !important; }
+
+/* ---- Trash ---------------------------------------------------------------
+   Reuses the export picker's shell; only the row differs, because a trash row
+   carries two actions rather than a checkbox. */
+.trash-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 6px var(--sp-3);
+  border-bottom: 1px solid var(--line-soft);
+}
+.trash-row:last-child { border-bottom: 0; }
+.trash-row:hover { background: var(--bg-hover); }
+.trash-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.trash-name {
+  font-family: var(--mono); font-size: var(--fs-base); color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.trash-sub { font-size: var(--fs-xs); color: var(--fg-faint); margin-top: 1px; }
+/* Where it will go back to. Called out because for anything deleted before the
+   trash index existed the answer is "the top level", not where it came from. */
+.trash-sub .to { color: var(--fg-mut); }
+.trash-acts { display: flex; gap: var(--sp-1); flex: none; }
+.trash-empty { padding: var(--sp-5); text-align: center; color: var(--fg-faint); }
+.link-btn.danger { color: var(--err); }
+
+/* ---- Trash button in the sidebar footer ---------------------------------
+   margin-left:auto pins it to the right edge, so the attach readout keeps the
+   left and the two never fight for the same space. */
+/* The footer stacks: status + Launch on one row, the trash on its own below.
+   The kit's .side-foot is a single centred flex row, which is right until a
+   fourth control shows up -- at the default 208px sidebar all four squeezed
+   the attach readout into an ellipsis and squashed the status dot. */
+.side-foot { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+
+.foot-id { display: flex; align-items: center; gap: 9px; min-width: 0; }
+/* A flex item with no basis shrinks; the dot is a circle and must not. */
+.foot-id .pulse-dot { flex: none; }
+/* Truncate the pid label rather than shoving the button off the edge. In
+   practice it never has to: the readout is only long once ATTACHED, and the
+   button is hidden by then. */
+.foot-id .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Now that the bin carries a label it reads as a row rather than as a floating
+   icon, so it aligns left with everything else in the sidebar and fills the
+   width. The kit's .foot-trash pins itself right with margin-left:auto, which
+   has to be undone here or the label sits jammed against the edge. */
+.foot-tools { display: flex; align-items: center; }
+.foot-tools .foot-trash {
+  margin-left: 0;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 4px 6px;
+}
+.foot-tools .foot-trash .lbl { font-size: var(--fs-sm); }
+/* The count keeps to the far right, so a growing label never shifts it. */
+.foot-tools .foot-trash .n { margin-left: auto; }
+
+.foot-launch {
+  margin-left: auto;
+  flex: none;
+  max-width: 60%;          /* never crowd the readout out of its own row */
+  padding: 4px 9px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  color: var(--fg-mut);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.foot-launch:hover { background: var(--bg-hover); color: var(--fg); border-color: var(--line-strong); }
+
+.foot-trash {
+  margin-left: auto;
+  flex: none;
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--fg-faint);
+  cursor: pointer;
+  font: inherit;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.foot-trash:hover { background: var(--bg-hover); color: var(--fg-mut); border-color: var(--line-soft); }
+.foot-trash svg { width: 13px; height: 13px; }
+.foot-trash .n {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+/* Empty trash keeps the icon but drops the number: an always-present "0" is
+   noise, while a vanishing icon would make the strip jump every time you
+   deleted the last item. */
+.foot-trash .n:empty { display: none; }
+
+/* The caret's bracket and its partner.
+   A HAIRLINE OUTLINE, and nothing else. It carried a fill as well, which made a
+   bracket shout as loudly as a search hit; and matching the find highlight
+   exactly was tried and is worse still, because with Find open you then cannot
+   tell a match from a bracket. They mean different things -- a search hit is
+   something you are hunting, a bracket match is ambient structure you glance at
+   -- so the bracket gets the quieter one.
+   Full --accent, not the --accent-line hairline: that was tried and read as
+   almost invisible against the code. outline costs no layout, so nothing shifts
+   as the caret moves, and the offset pulls it onto the glyph instead of ringing
+   the cell.
+   Nothing shows at all when the bracket is unbalanced, which is how you spot the
+   one you forgot to close. */
+.code .bk.on {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  border-radius: 2px;
+}
+
+
+
+/* ---- app mode ---------------------------------------------------------------
+   body.app-mode is host-driven (APPWIN:1/0): this same window is sitting over
+   the game as a tool window. The desktop-only chrome goes -- min/zoom have no
+   taskbar or desktop to serve, and the resize grips are off because the
+   window is sized and placed by the host. Close (X) stays: quitting the
+   console from in-game is legitimate. The badge (in the overlay), Insert and
+   Esc are the way back. */
+/* A setting the current mode makes inert: shown, so it does not read as a
+   missing feature, but plainly not in play. Input off as well as faded --
+   a control that looks dead and still toggles is worse than either. */
+.set-row.dim .set-label,
+.set-row.dim .set-desc { opacity: .42; }
+.set-row.dim .set-ctl  { opacity: .42; pointer-events: none; }
+
+body.app-mode #winMin,
+body.app-mode #winZoom,
+body.app-mode #resizers { display: none; }
+
+/* ---- Run / Stop chooser ------------------------------------------------- */
+/* Rides the export dialog's shell (.export-overlay is already centred), so
+   only the multi-select affordance is new. A checkbox rather than a highlight:
+   "which of these do I stop" is a selection, and a selection that looks like a
+   hover state is one you cannot read at a glance. */
+.run-chk {
+  width: 13px; height: 13px; flex: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  position: relative;
+}
+.run-chk.on { background: var(--accent); border-color: var(--accent); }
+.run-chk.on::after {
+  content: ""; position: absolute; left: 3px; top: 0;
+  width: 4px; height: 8px;
+  border: solid var(--bg); border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+/* A run that has been asked to stop but has not returned yet. Named rather
+   than greyed: "stopping…" is information, a dimmed row is ambiguous. */
+.run-stopping { color: var(--fg-faint); font-style: italic; }
+#runDlgFoot .btn.danger { color: var(--err, #e5766b); }
+
+/* THIN means narrow, not short. The run question is three buttons and a line
+   of text: at .export-box's 520px the buttons huddled in the right corner with
+   half the bar empty, which read as a dialog that had lost something. Narrower,
+   with the footer buttons sharing the width, the bar IS the answer row. */
+#runOverlay .export-box { width: 430px; }
+/* Header styled like the client picker's (.cand-head): a titled strip with a
+   rule under it, rather than .palette-input's search-field framing. Both are
+   the same kind of thing -- "here is the question, here are the answers" --
+   and they should not look like two different components. */
+#runOverlay .palette-input {
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+#runDlgTitle { font-size: 12.5px; color: var(--fg-mut); font-weight: var(--fw-normal, 400); }
+#runDlgFoot { display: flex; gap: var(--sp-2); }
+#runDlgFoot .btn { flex: 1; margin-left: 0; white-space: nowrap; }
+#runDlgFoot .btn:not(:first-of-type) { margin-left: 0; }
+
+/* The snippet names in the header are the ANSWER to "what is already running",
+   not a column label, so they do not take .export-listhead's faint treatment.
+   Dimmed to var(--fg-faint) they were the least readable thing in a dialog
+   that exists to tell you exactly that. */
+#runDlgSub { color: var(--fg); text-transform: none; letter-spacing: 0; }
+
+/* Room to drop BELOW the last row. Without it the final snippet sits flush
+   against the bottom edge, so dragging something past it has nowhere to land
+   and the list cannot be scrolled that last notch to see it clearly. One row's
+   worth is enough to make the end of the list feel like an end rather than a
+   cut. */
+/* A real element, not padding. padding-bottom on an OVERFLOWING scroll
+   container is not reliably added to its scrollable height -- the rule was in
+   the sheet, won the cascade, and produced no gap at all. A block in the flow
+   always counts. */
+#snippetList::after {
+  content: ""; display: block; flex: none; height: 44px;
+}
+
+/* ---- pointer-drag leftovers ---------------------------------------------
+   The 1px-dead-zone workaround that lived here (gap:0 plus transparent row
+   borders) is gone WITH the HTML5 drag it patched: the pointer drag computes
+   its target by ARITHMETIC over row rects (app.js, updateDropTarget), so the
+   kit's flex gap can be a real gap again -- no Y belongs to nobody. Do not
+   bring the workaround back; if a seam ever misbehaves, the bug is in the
+   banding walk, not in this sheet.
+
+   The child hit-target rule below survives from that era and is kept: the
+   row owns every handler, nothing inside it is clickable in its own right,
+   and letting the icon and text hit-test buys nothing.
+   NOT applied to .group-head, whose + and run controls ARE clickable. */
+.script-row .script-ico,
+.script-row .script-meta { pointer-events: none; }
+
+/* No text selection anywhere in the sidebar: a pointer drag is just a
+   button-held mousemove, and without this the press that picks up a group
+   header also starts selecting its name. vemacro puts user-select:none on
+   the whole BODY; here the editor and console must stay selectable, so it is
+   scoped to where drags begin -- a selection that cannot anchor here cannot
+   start mid-press. */
+.sidebar { user-select: none; }
