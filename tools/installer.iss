@@ -6,7 +6,7 @@
 
 #define AppName    "Eclipse Console"
 #define AppExe     "eclipse_console.exe"
-#define AppVersion "1.11.0"
+#define AppVersion "1.11.1"
 #define SrcDir     "..\build"
 
 [Setup]
