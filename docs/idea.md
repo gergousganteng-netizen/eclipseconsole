@@ -1,39 +1,39 @@
-- in editor bracket to bracket dotted line 
-  example
-  ```cpp
-  struct Client {
-  |   std::string name;
-  |   int64_t     userid   = 0;
-  |   uint64_t    model    = 0; 
-  |   uint64_t    humanoid = 0;
-  };
-  ```
+# UI/UX Improvements
 
-- menu tab
-  a tab that would have
-  - Launch roblox
-  - New snippet
-  - and etc
+## Bracket Pair Guidelines
+Visual dotted lines between matching brackets in the editor for better code structure navigation.
 
-- custom background and transparency
-  a new tab on the side
-  (maybe. might need preview)
-  moving the setting buttons too.
+```cpp
+struct Client {
+|   std::string name;
+|   int64_t     userid   = 0;
+|   uint64_t    model    = 0; 
+|   uint64_t    humanoid = 0;
+};
+```
 
-- new settings ui
-  instead of the vs like settings.
-  it a new tab that focus like a new page
-  along with the custom bg and trans
-  and more stuff
-  better rework of the settings tab
-  and better renaming of settings
-  - General
-  - Editor
-  - Console
-  - Client
-  - Appearance
+## Quick Access Menu
+Dedicated menu tab with shortcuts:
+- Launch Roblox
+- New snippet
+- Other actions (TBD)
 
-- Ui improvement
-  - Smaller bottom bar
-  - reducing button and text size to fit
-  - and more(thinking)
+## Custom Appearance
+New settings tab for visual customization:
+- Custom background/wallpaper
+- Window transparency
+- Preview option
+
+## Settings Redesign
+Replace current settings with tabbed interface:
+- **General** — App behavior
+- **Editor** — Editor preferences
+- **Console** — Output & logging
+- **Client** — Roblox connection
+- **Appearance** — Theme & visuals
+
+## Bottom Bar Optimization
+Reduce clutter and improve space efficiency:
+- Smaller bar height
+- Scaled-down buttons and text
+- Remove unnecessary elements
