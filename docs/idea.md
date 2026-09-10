@@ -26,6 +26,7 @@ Display compilation errors and syntax issues directly in the editor:
 
 ## Quick Access Menu
 Dedicated pinned menu tab with shortcuts:
+(preview mockup needed)
 - Launch Roblox
 - New snippet
 - Other actions (TBD)
@@ -48,12 +49,14 @@ Replace current settings with tabbed interface:
 Reduce clutter and improve space efficiency:
 - Smaller bottom bar height
 - Reduce text and button size
+- Fixed button size
+- Remove "F5" icon and add Run icon on left side of "Run"
 
 ## Status Bar Redesign
 Unified bottom status bar with integrated trash counter and attachment status:
 - **Trash Counter** (top-left) — Large icon with numeric badge (e.g., "9"), no text label
 - **Separator line** divides trash counter from status bar below
-- **Attachment Status** (bottom-right) — "Attached • [Display Name]" or "Not Attached"
+- **Attachment Status** (bottom-right) — "Attached • [Display Name]" or "No Client/Not Attached" Not attached only if there a client but not attached
   - Display name reuses existing panel HUD code for consistency
 - All elements in one seamless layout, reducing visual clutter
 
@@ -61,12 +64,22 @@ Unified bottom status bar with integrated trash counter and attachment status:
 ```
 _______________________________
 (Trash Icon) Recover Deleted  9
-Attached • Pid 1234
+● Attached • Pid 1234
 ```
 
 **New Layout:**
 ```
 (Trash Icon)  9
 _______________________________
-Attached • DisplayName
+● Attached • DisplayName
 ```
+
+```
+(Trash Icon)  9
+_______________________________
+● No Client/Not Attached
+```
+
+## Side bar weird gap and improvement
+- Fix the gap on top bar and "Snippet" text
+- Better "snippet" text accent choice
