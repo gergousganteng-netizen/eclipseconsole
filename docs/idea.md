@@ -58,11 +58,13 @@ Reduce clutter and improve space efficiency:
 - On Attached state: Attached • Display Name(Reuse the panel code)
 - The Trash Icon on top of this to be bigger with no text and only with the numbers along with seamless bar
 - Current
+
 _______________________________
 (Trash Icon) Recover Deleted  9
 Attached • Pid 1234
 
 - After
+
 (Trash Icon)  9
 _______________________________
 Attached • DisplayName
