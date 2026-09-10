@@ -36,17 +36,11 @@ New settings tab for visual customization:
 
 ## Settings Redesign
 Replace current settings with tabbed interface:
-- **General**
-  App behavior
-- **Editor**
-  Editor preferences
-- **Console**
-  Output & logging
-- **Client**
-  In Client Options
-  App as Hud and etc
-- **Appearance**
-  Theme & visuals
+- **General** - App behavior
+- **Editor** - Editor preferences
+- **Console** - Output & logging
+- **Client** - In Client Options such App as Hud and etc
+- **Appearance** - Theme & visuals
   
 ## Bottom Bar Optimization
 Reduce clutter and improve space efficiency:
