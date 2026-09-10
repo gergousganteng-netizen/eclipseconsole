@@ -27,7 +27,7 @@ Display compilation errors and syntax issues directly in the editor:
 ## Quick Access Menu
 Dedicated pinned menu tab with shortcuts:
 (preview mockup needed)
-- Launch Roblox
+- Launch Roblox (With Rocket icon and Loading icon)
 - New snippet
 - Other actions (TBD)
 
@@ -58,6 +58,7 @@ Unified bottom status bar with integrated trash counter and attachment status:
 - **Separator line** divides trash counter from status bar below
 - **Attachment Status** (bottom-right) — "Attached • [Display Name]" or "No Client/Not Attached" Not attached only if there a client but not attached
   - Display name reuses existing panel HUD code for consistency
+- Removed "Launch roblox) from Status bar
 - All elements in one seamless layout, reducing visual clutter
 
 **Current Layout:**
@@ -81,5 +82,5 @@ _______________________________
 ```
 
 ## Side bar weird gap and improvement
-- Fix the gap on top bar and "Snippet" text
+- Fix the gap between top bar and "Snippet" text
 - Better "snippet" text accent choice
