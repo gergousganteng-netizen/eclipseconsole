@@ -92,4 +92,4 @@ _______________________________
 
 ## Side bar weird gap and improvement
 - Fix the gap between top bar and "Snippet" text
-- Better "snippet" text accent choice
+- Brighter "snippet" text accent choice
