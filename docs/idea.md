@@ -39,6 +39,7 @@ New settings tab for visual customization:
 
 ## Settings Redesign
 Replace current settings with tabbed interface:
+(preview mockup needed)
 - **General** - App behavior
 - **Editor** - Editor preferences
 - **Console** - Output & logging
@@ -85,7 +86,7 @@ Unified bottom status bar with integrated trash counter and attachment status:
 - **Separator line** divides trash counter from status bar below
 - **Attachment Status** (bottom-right) — "Attached • [Display Name]" or "No Client/Not Attached" Not attached only if there a client but not attached
   - Display name reuses existing panel HUD code for consistency
-- Removed "Launch roblox) from Status bar
+- Remove "Launch roblox" from Status bar
 - All elements in one seamless layout, reducing visual clutter
 
 **Current Layout:**
