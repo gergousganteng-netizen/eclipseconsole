@@ -27,7 +27,7 @@ Display compilation errors and syntax issues directly in the editor:
 ## Quick Access Menu
 Dedicated pinned menu tab with shortcuts:
 (preview mockup needed)
-- Launch Roblox (With Rocket icon and Loading icon)
+- **Launch Roblox** — Rocket icon with loading state indicator
 - New snippet
 - Other actions (TBD)
 
@@ -45,14 +45,32 @@ Replace current settings with tabbed interface:
 - **Client** - In Client Options such App as Hud and etc
 - **Appearance** - Theme & visuals
 
-## New Button Placement And Attach Ui
-Button placement for "Run", "Stop", "Arm", "Detach" And "Save" below tab in code tab (preview mockup needed)
-- Run, Stop and new button "Launch" like the quick ass menu at the right side
-- "Attach" and "Detach" new button and ui, a roblox logo. clicking it open a side tab that blur the other content and shows its content with:
-```
-(Pfp) DisplayName(@Username)
-- game name
-```
+## Code Tab Toolbar & Client Attachment Panel
+
+**Below the code editor tab, add a toolbar with execution controls:**
+
+### Left Side: Execution Controls
+- **Run** — Execute current snippet
+- **Stop** — Halt running snippet
+- **Launch** — Opens Quick Access Menu with Roblox launch option (shares same action as Quick Access Menu)
+
+### Right Side: Client Attachment
+- **Attach Button** — Roblox logo icon, triggers a slide-in panel from the right edge
+
+**When Attach is clicked, a modal panel slides in from the right:**
+- Blurs all background content
+- Displays client info:
+  ```
+  (Pfp) DisplayName(@Username)
+  - game name
+  [Detach]
+  ```
+- **Detach button** — Disconnect from client (only visible when attached)
+- Panel closes when clicking outside it or when action is taken
+
+### Additional Toolbar Buttons
+- **Arm** — Toggle between dry-run and live memory writes
+- **Save** — Save current snippet
 
 ## Bottom Bar Optimization
 Reduce clutter and improve space efficiency:
