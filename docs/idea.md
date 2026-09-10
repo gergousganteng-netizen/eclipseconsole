@@ -1,11 +1,11 @@
 # UI/UX Improvements
 
-## New Side Tab Beside Sidebar
-Settings and the main tab
-Settings at the bottom that will have settings icon
-Main tab will be Console icon or Code icon >_
-Main tab at the top and settings at the bottom
-[For preview later]
+## Side Panel Navigation
+Add a secondary navigation panel beside the main sidebar (preview mockup needed):
+- **Main Tab** (top) — Console/Code interface with icon
+- **Settings Tab** (bottom) — Application settings with gear icon
+- Keeps primary controls accessible while reducing sidebar clutter
+- [Design & implementation pending]
 
 ## Bracket Pair Guidelines
 Visual dotted lines between matching brackets in the editor for better code structure navigation.
@@ -19,8 +19,11 @@ struct Client {
 };
 ```
 
-## In Editor Syntax Helper
-Shows syntax error or error on the line beside the code if the code is not compilable
+## Editor Inline Diagnostics
+Display compilation errors and syntax issues directly in the editor:
+- Red underlines or icons next to problematic lines
+- Hover tooltips showing specific error messages
+- Real-time feedback as code is typed, preventing failed compilation attempts
 
 ## Quick Access Menu
 Dedicated pinned menu tab with shortcuts:
@@ -47,18 +50,24 @@ Reduce clutter and improve space efficiency:
 - Smaller bottom bar height
 - Reduce text and button size
 
-- # Better Attached Bottom Bar Status
-- On Detached state: Not Attached
-- On Attached state: Attached • Display Name(Reuse the panel code)
-- The Trash Icon on top of this to be bigger with no text and only with the numbers along with seamless bar
-- Current
+## Status Bar Redesign
+Unified bottom status bar with integrated trash counter and attachment status:
+- **Trash Counter** (top-left) — Large icon with numeric badge (e.g., "9"), no text label
+- **Separator line** divides trash counter from status bar below
+- **Attachment Status** (bottom-right) — "Attached • [Display Name]" or "Not Attached"
+  - Display name reuses existing panel HUD code for consistency
+- All elements in one seamless layout, reducing visual clutter
 
+**Current Layout:**
+```
 _______________________________
 (Trash Icon) Recover Deleted  9
 Attached • Pid 1234
+```
 
-- After
-
+**New Layout:**
+```
 (Trash Icon)  9
 _______________________________
 Attached • DisplayName
+```
