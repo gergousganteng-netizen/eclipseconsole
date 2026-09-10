@@ -44,7 +44,16 @@ Replace current settings with tabbed interface:
 - **Console** - Output & logging
 - **Client** - In Client Options such App as Hud and etc
 - **Appearance** - Theme & visuals
-  
+
+## New Button Placement And Attach Ui
+Button placement for "Run", "Stop", "Arm", "Detach" And "Save" below tab in code tab (preview mockup needed)
+- Run, Stop and new button "Launch" like the quick ass menu at the right side
+- "Attach" and "Detach" new button and ui, a roblox logo. clicking it open a side tab that blur the other content and shows its content with:
+```
+(Pfp) DisplayName(@Username)
+- game name
+```
+
 ## Bottom Bar Optimization
 Reduce clutter and improve space efficiency:
 - Smaller bottom bar height
