@@ -21,9 +21,8 @@ struct Client {
 
 ## Editor Inline Diagnostics
 Display compilation errors and syntax issues directly in the editor:
-- Red underlines or icons next to problematic lines
-- Hover tooltips showing specific error messages
-- Real-time feedback as code is typed, preventing failed compilation attempts
+- **Error/Warning indicators in gutter** — Red icon for errors, yellow icon for warnings, displayed beside line numbers
+- **Real-time feedback** as code is typed, preventing failed compilation attempts
 
 ## Quick Access Menu
 Dedicated pinned menu tab with shortcuts:
