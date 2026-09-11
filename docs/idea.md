@@ -25,10 +25,11 @@ Display compilation errors and syntax issues directly in the editor:
 - **Real-time feedback** as code is typed, preventing failed compilation attempts
 
 ## Quick Access Menu
-Dedicated pinned menu tab with shortcuts:
+Dedicated pinned menu tab welcoming user and with shortcuts:
 (preview mockup needed)
 - **Launch Roblox** — Rocket icon with loading state indicator
 - New snippet
+- Settings button
 - Other actions (TBD)
 
 ## Custom Appearance
@@ -76,15 +77,14 @@ Replace current settings with tabbed interface:
 ## Bottom Bar Optimization
 Reduce clutter and improve space efficiency:
 - Smaller bottom bar height
-- Reduce text and button size
-- Fixed button size
+- Move Buttons, see "Code Tab Toolbar & Client Attachment Panel"
 - Remove "F5" icon and add Run icon on left side of "Run"
 
 ## Status Bar Redesign
 Unified bottom status bar with integrated trash counter and attachment status:
 - **Trash Counter** (top-left) — Large icon with numeric badge (e.g., "9"), no text label
 - **Separator line** divides trash counter from status bar below
-- **Attachment Status** (bottom-right) — "Attached • [Display Name]" or "No Client/Not Attached" Not attached only if there a client but not attached
+- **Attachment Status** (bottom-right) — "Attached • [Display Name]" or "No Client/Not Attached" Not Attached only if there a client
   - Display name reuses existing panel HUD code for consistency
 - Remove "Launch roblox" from Status bar
 - All elements in one seamless layout, reducing visual clutter
