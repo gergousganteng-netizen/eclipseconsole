@@ -1568,6 +1568,32 @@
     // Every other row's dot is rendered from rowDirty() by renderSnippets().
     var row = document.querySelector(".script-row.active .dirty-dot");
     if (row) row.style.display = d ? "" : "none";
+    renderToolbarFile();
+  }
+
+  // The toolbar's left-hand context line: which file the buttons beside it act
+  // on. In place, from here and from renderTabs, for the same reason the dot
+  // above is -- this runs on every keystroke and must not rebuild anything.
+  function renderToolbarFile() {
+    var el = $("tbFile");
+    if (!el) return;
+    el.innerHTML = "";
+    if (!currentName) {
+      // Not "no file": an empty buffer you paste into and Run without ever
+      // saving is a supported way to work here, so the bar says what Run will
+      // act on rather than implying nothing will happen.
+      el.textContent = "untitled";
+      el.title = "Unsaved buffer — Run works on it, Save will ask for a name";
+      return;
+    }
+    el.appendChild(document.createTextNode(currentName));
+    if (dirty) {
+      var d = document.createElement("span");
+      d.className = "dirty";
+      d.textContent = " ●";
+      el.appendChild(d);
+    }
+    el.title = currentName + (dirty ? "  ·  unsaved changes" : "");
   }
 
   // ---- grouping -----------------------------------------------------------
@@ -2484,16 +2510,11 @@
     nav.appendChild(arrow("←", "Back  (Alt+Left, or mouse back)",     navBack.length > 0, goBack));
     nav.appendChild(arrow("→", "Forward  (Alt+Right, or mouse fwd)",  navFwd.length > 0, goFwd));
 
-    // The root segment is WHERE ON DISK, and it is the only one that is not a
-    // folder in the tree: not clickable, not a drop target. Shortened because
-    // the expanded path never fits this sidebar; the tooltip carries the real
-    // one so the short form is a label, not a lie.
-    var home = document.createElement("span");
-    home.className = "crumb-home";
-    home.textContent = "%APPDATA%";
-    home.title = "%APPDATA%\\EclipseConsole\\snippets";
-    path.appendChild(home);
-
+    // NO DISK-ROOT SEGMENT. "%APPDATA% › Snippets" spent the first half of a
+    // 208px line on a fact that never changes, and read as two levels of
+    // nesting where there is one. Where the tree lives is still worth being
+    // able to find, so it stays as the root crumb's tooltip -- one hover, not
+    // one line, and the answer is the same.
     var trail = [{ label: "Snippets", path: "" }], acc = "";
     (focus ? focus.split("/") : []).forEach(function (p) {
       acc = acc ? acc + "/" + p : p;
@@ -2501,16 +2522,21 @@
     });
 
     trail.forEach(function (seg, i) {
-      var sep = document.createElement("span");
-      sep.className = "crumb-sep";
-      sep.textContent = "›";
-      path.appendChild(sep);
+      // A separator goes BETWEEN segments. With the disk root gone the first
+      // crumb starts the line, and a leading "›" there read as a level that
+      // had been cut off.
+      if (i) {
+        var sep = document.createElement("span");
+        sep.className = "crumb-sep";
+        sep.textContent = "›";
+        path.appendChild(sep);
+      }
 
       var here = i === trail.length - 1;
       var c = document.createElement("span");
       c.className = "crumb" + (here ? " here" : "");
       c.textContent = seg.label;
-      c.title = seg.path || "the whole tree";
+      c.title = seg.path || "%APPDATA%\\EclipseConsole\\snippets";
       if (!here) c.addEventListener("click", function () { focusOn(seg.path); });
       // Every segment is a drop target -- the engine reads this marker. Not a
       // nicety: the list background means "into the focus", so without these
@@ -3105,6 +3131,9 @@
     strip.appendChild(sp);
 
     if (strip.scrollLeft !== keepScroll) strip.scrollLeft = keepScroll;
+
+    // The toolbar names the same file the tabs do, so they update together.
+    renderToolbarFile();
 
     // Switching to a tab that is scrolled off does nothing visible otherwise
     // -- the editor changes and the strip still shows somewhere else.
@@ -4097,6 +4126,9 @@
 
   // ---- run / arm ----------------------------------------------------------
   var attachedPid = 0;
+  // Is a Roblox client running at all, attached or not? Straight from the
+  // host's own find_client(); see client_running() in attach.cpp.
+  var clientRunning = false;
   var armed = false, running = false;
   // Mirrors the host's own refusal, so the page can say why before you click
   // rather than after. The host is still the one that enforces it.
@@ -4144,10 +4176,13 @@
     // Run always means run. Stop always means stop. Neither label changes with
     // state -- a control that means something different depending on what is
     // live is the one you press by muscle memory and regret.
-    $("btnRun").innerHTML = 'Run <span class="kbd">F5</span>';
+    //
+    // WRITE THE .lbl, NOT THE BUTTON. Both carry an icon as a sibling of the
+    // text now, so assigning textContent (or innerHTML) here would delete it.
     var st = $("btnStop");
     st.disabled = !running;
-    st.textContent = liveRuns.length > 1 ? "Stop (" + liveRuns.length + ")" : "Stop";
+    st.querySelector(".lbl").textContent =
+      liveRuns.length > 1 ? "Stop (" + liveRuns.length + ")" : "Stop";
     st.title = running ? liveRuns.map(function (r) { return r.name; }).join(", ") : "";
     st.classList.toggle("armed", running);
     $("pulse").classList.toggle("firing", running);
@@ -4450,24 +4485,26 @@
     }
   });
 
-  // Attached, this DETACHES. The button names the action, not the state --
-  // same reasoning as the arm button beside it.
+  // OPENS THE PANEL; it does not attach or detach by itself. It used to be a
+  // button that toggled, which meant the one control for "which client am I
+  // on" could only ever say yes or no to the client it had already chosen --
+  // there was nowhere to answer "that one".
   $("btnAttach").addEventListener("click", function () {
-    send(attachedPid ? "DETACH" : "REATTACH");
+    if (candIsOpen()) closeCand(); else openCand();
   });
 
-  // Click on the attach chip (footer) re-picks the client. Only meaningful
-  // when candMulti is true; on a single-instance session the chip is not
-  // interactive, so the click is a no-op there.
+  // Click on the attach readout (sidebar footer) opens the same panel. It only
+  // looks clickable in a multi-instance session, which is when re-picking is a
+  // thing you want, but the panel is the right answer either way.
   $("footState").addEventListener("click", function () {
     if (!candMulti) return;
-    send("REATTACH");
+    openCand();
   });
 
   // Escape closes the candidate picker without attaching. The user still has
   // to pick before the app can attach; nothing else changes state.
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && $("candOverlay").classList.contains("open")) {
+    if (e.key === "Escape" && candIsOpen()) {
       e.preventDefault();
       closeCand();
     }
@@ -4552,20 +4589,21 @@
 
   var placeNameCache = {};
 
+  // The title landed. Fill every row showing this place, in place -- a full
+  // re-render would drop the row under the pointer mid-hover.
+  //
+  // THE PLACE ID IS NOT IN THE LINE ANY MORE. The picker put it there because
+  // it was the only thing guaranteed to be readable; the panel's rows are
+  // already identified by the account above them, and "· place 8737899170"
+  // beside a game title was a number nobody reads. It lives on the row's
+  // tooltip with the pid.
   function refreshPlaceLabels(placeId) {
-    var els = document.querySelectorAll('.cand-place[data-place-id="' + placeId + '"]');
+    var els = document.querySelectorAll('.att-place[data-place-id="' + placeId + '"]');
     var name = placeNameCache[placeId];
     els.forEach(function (el) {
       var raw = el.dataset.rawPlace || "";
-      if (raw === "Ugc") {
-        el.textContent = name
-          ? (name + "  ·  place " + placeId)
-          : ("In game · place " + placeId);
-      } else {
-        el.textContent = raw
-          + (name ? (" · " + name) : "")
-          + " · place " + placeId;
-      }
+      if (name) el.textContent = name;
+      else      el.textContent = raw === "Ugc" ? "in a game" : raw;
     });
   }
 
@@ -4578,117 +4616,223 @@
     send("LOOKUP_PLACE:" + placeId);
   }
 
-  // ---- candidate picker (multi-instance) ---------------------------------
+  // ---- the clients panel --------------------------------------------------
   //
-  // Shown when the host reports 2+ Roblox clients running, and re-openable
-  // from the status-bar attach chip. Rows list username + display + place +
-  // pid + monitor; clicking one sends ATTACH_PID:<pid> to the host.
+  // Slides in from the right edge. Opened by the toolbar's Roblox mark, and by
+  // the host (OPEN_PICKER:) when an attach finds several clients and needs one
+  // picked. That second case is all the centred modal this replaced ever did;
+  // it is now one way into a panel rather than a component of its own.
   //
-  // `candCache` holds the last list so the status-bar dropdown can re-render
-  // without asking the host again.
+  // A row is avatar + display name + @username + place, with Detach on the one
+  // we are attached to. Clicking any other row sends ATTACH_PID:<pid>.
+  //
+  // `candCache` holds the last list the host sent, so a re-render -- a place
+  // title resolving, a headshot landing -- costs nothing.
 
   var candCache = [];
   var candMulti = false;   // stays true once we've seen >=2 instances, so the
-                           // status-bar chip shows a caret afterwards.
+                           // sidebar readout shows a caret afterwards.
+  var avatarCache = {};    // userId -> url. undefined = never asked.
 
-  function openCand() { $("candOverlay").classList.add("open"); }
-  function closeCand() { $("candOverlay").classList.remove("open"); }
+  function candIsOpen() { return $("attPanel").classList.contains("open"); }
 
-  $("candOverlay").addEventListener("click", function (e) {
-    if (e.target === $("candOverlay")) closeCand();
-  });
+  function openCand() {
+    $("attPanel").classList.add("open");
+    $("attScrim").classList.add("open");
+    // ASK EVERY TIME. The host only pushes CANDIDATES unprompted at 2+ clients,
+    // so in the normal single-client case the cache is empty and the panel
+    // would open blank. Cheap: one process walk, and it renders what it has in
+    // the meantime.
+    requestClients();
+  }
+  function closeCand() {
+    $("attPanel").classList.remove("open");
+    $("attScrim").classList.remove("open");
+  }
+
+  function requestClients() {
+    $("attRefresh").classList.add("spin");
+    send("CLIENTS");
+  }
+
+  $("attScrim").addEventListener("click", closeCand);
+  $("attClose").addEventListener("click", closeCand);
+  $("attRefresh").addEventListener("click", requestClients);
+  // ---- launching -----------------------------------------------------------
+  //
+  // THE PAGE DRIVES THE SPINNER, because the host cannot. launch_roblox() hands
+  // a `roblox-player:` URI to the shell and returns; whichever bootstrapper is
+  // registered then does its own thing -- which on an update is minutes -- and
+  // nothing reports back. So the only honest end condition is A CLIENT EXISTING,
+  // which the host already tells us on every state push.
+  //
+  // The timeout is NOT how long a launch takes -- a bootstrapper on an update
+  // runs for minutes, and the client turning up is what ends the spin. It is
+  // how long the click is worth acknowledging for. 15 seconds: long enough to
+  // see it, short enough that a cancelled launch does not leave the toolbar
+  // spinning at you.
+  var launching = false, launchTimer = 0;
+  // Whether a client was ALREADY running when this launch started. Without it
+  // "a client exists" ends the spin instantly on the second-client case -- you
+  // press Launch with one client up, the condition is already true on the next
+  // state push, and the button never spins at all.
+  var launchHadClient = false;
+
+  function setLaunching(on) {
+    launching = on;
+    $("btnLaunch").classList.toggle("loading", on);
+    $("attLaunch").classList.toggle("loading", on);
+    clearTimeout(launchTimer);
+    if (on) launchTimer = setTimeout(function () { setLaunching(false); }, 15000);
+  }
+
+  function doLaunch() {
+    // A second press cannot help: the first URI is already with the shell, and
+    // sending another only risks a client you did not ask for.
+    if (launching) return;
+    launchHadClient = clientRunning || !!attachedPid;
+    setLaunching(true);
+    send("LAUNCH_ROBLOX");
+  }
+
+  $("attLaunch").addEventListener("click", doLaunch);
+
+  function lookupAvatar(uid) {
+    if (!uid || avatarCache[uid] !== undefined) return;   // done or in flight
+    avatarCache[uid] = null;
+    send("LOOKUP_AVATAR:" + uid);
+  }
+
+  // The headshot landed. Fill every row already showing this account rather
+  // than re-rendering: a rebuild would drop the row under the pointer.
+  function applyAvatar(uid, url) {
+    var els = document.querySelectorAll('.att-pfp[data-uid="' + uid + '"]');
+    els.forEach(function (el) {
+      if (el.querySelector("img")) return;
+      var im = document.createElement("img");
+      im.src = url;
+      im.alt = "";
+      // The initial stays underneath until the bytes actually decode, so a
+      // dead URL leaves a letter rather than an empty circle.
+      im.addEventListener("error", function () { im.remove(); });
+      el.appendChild(im);
+    });
+  }
 
   function renderCand(list) {
     candCache = list || [];
     if (candCache.length >= 2) candMulti = true;
+    $("attRefresh").classList.remove("spin");
 
-    var container = $("candList");
+    var container = $("attList");
     container.innerHTML = "";
 
-    candCache.forEach(function (c) {
-      var row = document.createElement("div");
-      row.className = "cand-row" + (c.ok ? "" : " disabled");
+    $("attCount").textContent = candCache.length
+      ? (candCache.length + (candCache.length === 1 ? " client" : " clients"))
+      : "";
 
-      // Left: username · displayName (if different) · place
-      var left = document.createElement("div");
-      var name = document.createElement("span");
-      name.className = "cand-name";
+    if (!candCache.length) {
+      var none = document.createElement("div");
+      none.className = "att-empty";
+      none.textContent = "No Roblox client running.";
+      container.appendChild(none);
+      return;
+    }
+
+    candCache.forEach(function (c) {
+      var mine = !!attachedPid && c.pid === attachedPid;
+
+      var row = document.createElement("div");
+      row.className = "att-row" + (c.ok ? "" : " disabled") + (mine ? " current" : "");
+      row.title = "pid " + c.pid + (c.mon ? ("  ·  monitor " + c.mon) : "");
+
       // No username is USUALLY not a failure. Players.LocalPlayer does not
-      // exist until you join a place, so a client sitting in the Roblox app
-      // has a perfectly readable DataModel -- named "LuaApp" -- and simply
-      // nobody to name. "(unknown)" made that indistinguishable from a client
-      // we could not read at all, which is the case that actually needs
-      // attention.
-      name.textContent = c.user
+      // exist until you join a place, so a client sitting in the Roblox app has
+      // a perfectly readable DataModel -- named "LuaApp" -- and simply nobody
+      // to name. "(unknown)" made that indistinguishable from a client we could
+      // not read at all, which is the case that actually needs attention.
+      var label = c.user
         ? c.user
-        : (!c.ok            ? "(cannot read this client)"
-        :  c.place === "LuaApp" ? "in the Roblox menu"
-        :                     "loading…");
-      left.appendChild(name);
-      if (c.disp && c.disp !== c.user) {
-        var d = document.createElement("span");
-        d.className = "cand-disp";
-        d.textContent = "@" + c.disp;
-        left.appendChild(d);
+        : (!c.ok                 ? "(cannot read this client)"
+        :  c.place === "LuaApp"  ? "in the Roblox menu"
+        :                          "loading…");
+
+      var pfp = document.createElement("div");
+      pfp.className = "att-pfp";
+      pfp.textContent = label.charAt(0).toUpperCase();
+      if (c.uid) {
+        pfp.dataset.uid = c.uid;
+        if (avatarCache[c.uid]) applyAvatar(c.uid, avatarCache[c.uid]);
+        else                    lookupAvatar(c.uid);
       }
+
+      var meta = document.createElement("div");
+      meta.className = "att-meta";
+
+      // DISPLAY NAME BIG, @username small beside it -- Roblox's own ordering,
+      // and the one the panel is read with: you recognise the display name and
+      // you only need the handle to tell two similar ones apart. Shown only
+      // when they differ, which for most accounts they do not.
+      var name = document.createElement("div");
+      name.className = "att-name";
+      name.textContent = label;
+      if (c.disp && c.disp !== c.user) {
+        var at = document.createElement("span");
+        at.className = "at";
+        at.textContent = "@" + c.disp;
+        name.appendChild(at);
+      }
+      meta.appendChild(name);
+
+      var place = document.createElement("div");
+      place.className = "att-place";
       if (c.place) {
-        left.appendChild(document.createElement("br"));
-        var p = document.createElement("span");
-        p.className = "cand-place";
-        // Tag with the raw DataModel class + placeId so refreshPlaceLabels
-        // can find this element again after the async fetch resolves.
+        // Tagged so refreshPlaceLabels can find this element again once the
+        // async title fetch resolves.
         if (c.placeId) {
-          p.dataset.placeId  = c.placeId;
-          p.dataset.rawPlace = c.place;
+          place.dataset.placeId  = c.placeId;
+          place.dataset.rawPlace = c.place;
         }
-        // Initial text -- from cache if available, otherwise a friendly
-        // placeholder while the fetch is in flight.
         if (c.place === "LuaApp") {
-          p.textContent = "LuaApp";
+          place.textContent = "Roblox menu";
         } else if (c.placeId) {
           var cached = placeNameCache[c.placeId];
           if (cached) {
-            p.textContent = (c.place === "Ugc"
-              ? cached
-              : (c.place + " · " + cached)) + "  ·  place " + c.placeId;
+            place.textContent = cached;
           } else {
-            p.textContent = c.place === "Ugc"
-              ? ("In game · place " + c.placeId)
-              : (c.place + " · place " + c.placeId);
+            place.textContent = c.place === "Ugc" ? "in a game" : c.place;
             lookupPlaceName(c.placeId);
           }
         } else {
-          p.textContent = c.place;
+          place.textContent = c.place;
         }
-        left.appendChild(p);
       } else if (!c.ok) {
-        left.appendChild(document.createElement("br"));
-        var na = document.createElement("span");
-        na.className = "cand-place";
-        na.textContent = "(access denied)";
-        left.appendChild(na);
+        place.textContent = "access denied";
       }
+      meta.appendChild(place);
 
-      // Middle: monitor badge
-      var mon = document.createElement("div");
-      mon.className = "cand-meta";
-      mon.textContent = c.mon ? ("monitor " + c.mon) : "";
+      row.appendChild(pfp);
+      row.appendChild(meta);
 
-      // Right: pid
-      var pid = document.createElement("div");
-      pid.className = "cand-meta";
-      pid.textContent = "pid " + c.pid;
-
-      row.appendChild(left);
-      row.appendChild(mon);
-      row.appendChild(pid);
-
-      if (c.ok) {
+      if (mine) {
+        // Detach lives on the attached row, not in the footer: it is an action
+        // ON THIS CLIENT, and a footer button would have to name which.
+        var det = document.createElement("button");
+        det.className = "att-act danger";
+        det.textContent = "Detach";
+        det.title = "Release the client. Nothing can be read or written until you attach again.";
+        det.addEventListener("click", function (e) {
+          e.stopPropagation();       // the row would re-attach us underneath
+          send("DETACH");
+        });
+        row.appendChild(det);
+      } else if (c.ok) {
         row.addEventListener("click", function () {
           send("ATTACH_PID:" + c.pid);
           closeCand();
         });
       }
+
       container.appendChild(row);
     });
   }
@@ -5187,7 +5331,7 @@
   // Fire and forget. The watcher picks the client up within a second or two of
   // it being ready, so there is nothing to wait on here and nothing to report
   // that the attach line will not say better.
-  $("btnLaunch").addEventListener("click", function () { send("LAUNCH_ROBLOX"); });
+  $("btnLaunch").addEventListener("click", doLaunch);
   $("trashClose").addEventListener("click", closeTrash);
   $("trashOverlay").addEventListener("click", function (e) {
     if (e.target === $("trashOverlay")) closeTrash();
@@ -5354,18 +5498,34 @@
     // Attach. Single-instance sessions keep the plain text.
     var fs = $("footState");
     fs.innerHTML = "";
+    fs.title = "";
     fs.classList.toggle("attach-chip", candMulti && !!s.pid);
     if (!s.pid) {
-      fs.textContent = "detached";
+      // TWO DETACHED STATES, not one. "detached" answered neither question a
+      // user actually has here: is Roblox even open, and if it is, why are we
+      // not on it? s.client is the host's own find_client() answer, so the
+      // wording follows what is really there -- No client means press Launch,
+      // Not attached means press Attach.
+      fs.textContent = s.client ? "Not attached" : "No client";
     } else {
-      // Look up the current pid in the cached candidate list to show a
-      // friendly label (username + place) if we know one.
-      var me = null;
-      for (var i = 0; i < candCache.length; i++) {
-        if (candCache[i].pid === s.pid) { me = candCache[i]; break; }
+      // THE DISPLAY NAME, from s.user -- the same field the in-game panel
+      // header reads, resolved by the host's identity tick (display name with
+      // the username as fallback). Not the candidate cache: that is only
+      // populated in multi-instance sessions, so a single client showed the
+      // bare pid, and the two surfaces could name the same account
+      // differently.
+      fs.appendChild(document.createTextNode("Attached"));
+      if (s.user) {
+        fs.appendChild(document.createTextNode(" • "));
+        var nm = document.createElement("span");
+        nm.className = "nm";
+        nm.textContent = s.user;
+        fs.appendChild(nm);
       }
-      var label = me && me.user ? (me.user + " · pid " + s.pid) : ("attached · pid " + s.pid);
-      fs.appendChild(document.createTextNode(label));
+      // The pid moves to the tooltip rather than being dropped -- it is what
+      // you need when reporting something, and it is not what you read the
+      // line for. Same split the panel header makes.
+      fs.title = "pid " + s.pid + (s.version ? ("  ·  " + s.version) : "");
       if (candMulti) {
         var caret = document.createElement("span");
         caret.className = "caret";
@@ -5377,14 +5537,19 @@
 
     // Kept for the click handler, which has no state of its own.
     attachedPid = s.pid || 0;
-    var at = $("btnAttach");
-    at.textContent = s.pid ? "Detach" : "Attach";
-    at.title = s.pid
-      ? "Release the client. Nothing can be read or written until you attach again."
-      : "Attach to the running client.";
-    // Detached only. Once attached the button has nothing useful to do, and a
-    // second client is a deliberate act that belongs behind the attach chip.
-    $("btnLaunch").hidden = !!s.pid;
+    // Icon only, so there is no label to keep in step -- just what pressing it
+    // opens, and what it will show when it does.
+    $("btnAttach").title = s.pid ? "Clients — attached" : "Clients";
+    // NOT HIDDEN WHEN ATTACHED -- see the note on the button in index.html.
+    clientRunning = !!s.client;
+    // A client turned up where there was none: the launch did what it was for,
+    // whether or not it was ours that started it. Launching a SECOND client has
+    // no such signal -- the host reports "a client exists", not how many -- so
+    // that one just runs the spinner out.
+    if (launching && !launchHadClient && (s.client || s.pid)) setLaunching(false);
+    // Rows carry a Detach button on the attached one and are click-to-attach
+    // otherwise, so a change of pid changes what the open panel means.
+    if (candIsOpen()) renderCand(candCache);
 
     // The host is authoritative about the gate, so the countdown follows it
     // rather than the button -- arming through any other path still gets the
@@ -5476,9 +5641,8 @@
         try { addLogBatch(JSON.parse(body) || []); } catch (err) {}
       } else if (type === "CANDIDATES") {
         // Host is telling us who's out there. NEVER auto-opens: this only
-        // updates the cache (and refreshes rows in place if the modal
-        // happens to be open). The host sends OPEN_PICKER separately when
-        // the user has explicitly asked for it.
+        // updates the cache and redraws the panel's rows if it is up. The host
+        // sends OPEN_PICKER separately when the user has explicitly asked.
         try { renderCand(JSON.parse(body) || []); } catch (err) {}
       } else if (type === "TRASH") {
         try { trashItems = JSON.parse(body) || []; } catch (err) { trashItems = []; }
@@ -5488,7 +5652,7 @@
         renderTrashCount();
         renderTrash();
       } else if (type === "OPEN_PICKER") {
-        // Explicit user request -- Attach button or status-bar chip.
+        // An attach found several clients and needs one picked.
         openCand();
       } else if (type === "PLACE_NAME") {
         // Reply to LOOKUP_PLACE. Body is "<placeId>|<name>". Empty name
@@ -5499,6 +5663,15 @@
           var name = body.slice(bar + 1);
           placeNameCache[pid] = name || "";
           refreshPlaceLabels(pid);
+        }
+      } else if (type === "AVATAR") {
+        // Reply to LOOKUP_AVATAR. Body is "<userId>|<url>". The host stays
+        // quiet when there is no headshot, so there is no empty case here --
+        // the row simply keeps the initial it already drew.
+        var abar = body.indexOf("|");
+        if (abar > 0) {
+          var auid = body.slice(0, abar), aurl = body.slice(abar + 1);
+          if (aurl) { avatarCache[auid] = aurl; applyAvatar(auid, aurl); }
         }
       } else if (type === "IMPORTSETTINGS") {
         // Same rule the files get: never overwrite something you made your
@@ -5533,15 +5706,17 @@
       } else if (type === "STATE") {
         try { applyState(JSON.parse(body)); } catch (err) {}
       } else if (type === "LAUNCHER") {
-        // ALWAYS "Launch Roblox". The button used to name the detected
-        // bootstrapper -- "Launch Froststrap" -- which is wrong twice over: the
-        // detection is a guess from install paths, and what actually starts is
-        // whatever owns the roblox-player protocol, which may be something else
-        // entirely. The thing you want is Roblox; which wrapper gets you there
-        // belongs in the tooltip, not on the button.
-        var b = $("btnLaunch");
-        b.textContent = "Launch Roblox";
-        b.title = body ? "Start Roblox via " + body : "Start Roblox";
+        // TOOLTIP ONLY -- the labels are fixed, and neither is written here.
+        // The button used to name the detected bootstrapper ("Launch
+        // Froststrap"), which is wrong twice over: the detection is a guess
+        // from install paths, and what actually starts is whatever owns the
+        // roblox-player protocol, which may be something else entirely. The
+        // thing you want is Roblox; which wrapper gets you there belongs in the
+        // tooltip. (Writing the label here would also delete the two icons
+        // inside the button, which is why it is not just unnecessary.)
+        var ltip = body ? "Start Roblox via " + body : "Start Roblox";
+        $("btnLaunch").title = ltip;
+        $("attLaunch").title = ltip;
       } else if (type === "OFFSETS") {
         try { offsets = JSON.parse(body) || []; } catch (err) { offsets = []; }
       } else if (type === "SNIPPETS") {

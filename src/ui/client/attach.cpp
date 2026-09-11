@@ -172,6 +172,14 @@ static bool     g_multi_logged  = false;
 // it -- acting early is exactly the desktop-window flash at startup the user
 // reported (the tick showed the window ~16ms in, long before the first probe).
 static std::atomic<bool> g_attach_probed{ false };
+// Is there a Roblox client running AT ALL, attached or not? The sidebar
+// readout distinguishes "nothing to attach to" from "something is there and we
+// are not on it", and those are different things to a user: the first wants
+// Launch, the second wants Attach. Only the detached branch of attach_poll
+// writes it, because that branch already calls find_client() every tick -- so
+// this costs nothing new, and while we ARE attached the answer is trivially
+// yes (client_running reads the pid first).
+static std::atomic<bool> g_client_seen{ false };
 
 static void send_candidates(const std::vector<ec::Candidate>& cs) {
     std::ostringstream j;
@@ -191,6 +199,38 @@ static void send_candidates(const std::vector<ec::Candidate>& cs) {
     }
     j << "]";
     ui_post("CANDIDATES:" + j.str());
+}
+
+// The clients panel asked for a list. Unconditional -- every client, whatever
+// the count -- where send_candidates' other callers only fire at 2+.
+//
+// ON ITS OWN THREAD, and not negotiable: enumerating costs ~100ms with two
+// clients (nearly all of it duplicating handles out of the crash handlers) and
+// it takes g_attach_mux, so doing it inline would stall the message pump for
+// the length of the walk AND for however long an attach in flight holds the
+// lock. The panel opens on the click and fills in when this lands.
+//
+// g_list_busy collapses a double-click into one walk. Not correctness -- two
+// walks would agree -- but two 100ms lock holds back to back delay whatever
+// else wants the lock, for a second answer nobody asked for.
+static std::atomic<bool> g_list_busy{ false };
+
+void list_clients_async() {
+    if (g_list_busy.exchange(true)) return;
+    std::thread([] {
+        ec::mark_host_thread();   // enumerate_candidates reads every client
+        {
+            std::lock_guard<std::mutex> lk(g_attach_mux);
+            // OFFSETS FIRST -- the same reason do_attach does it below, and the
+            // same bug if it is left out: ec::detach() calls offset_clear(), so
+            // after a Detach every read in the walk comes back BAD and every
+            // client is reported as unreadable. Idempotent when they are
+            // already loaded.
+            ec::preload_offsets(ui_conf());
+            send_candidates(ec::enumerate_candidates());
+        }
+        g_list_busy = false;
+    }).detach();
 }
 
 void do_attach(bool quiet, bool force, uint32_t target_pid) {
@@ -415,7 +455,17 @@ void attach_poll() {
         // are expected to fail and should not fill the console.
         // do_attach() already logs the success line, so nothing extra here.
         // It takes g_attach_mux itself, so it is NOT wrapped below.
-        if (!g_user_detached.load() && ec::find_client()) do_attach(true);
+        //
+        // One find_client() call, two readers: the auto-attach below and the
+        // readout flag. Calling it twice would double the process walk for the
+        // same answer, and the two could disagree across the gap.
+        bool seen = ec::find_client() != 0;
+        bool was  = g_client_seen.exchange(seen);
+        if (!g_user_detached.load() && seen) do_attach(true);
+        // A client appearing or exiting while detached changes nothing else
+        // the page can see, so without this push the readout would sit on its
+        // old answer until some unrelated event happened to push state.
+        else if (was != seen) push_state();
         // The look is complete either way: a client was found (do_attach
         // ran, pid set or not) or there is none. The overlay-mode window
         // gates may act on "no client" from here on.
@@ -701,6 +751,10 @@ void attach_to_pid(uint32_t pid) {
 }
 
 bool attach_probed() { return g_attach_probed.load(); }
+
+// Attached implies running, so the pid answers first and the flag only carries
+// the detached case -- which is the only case the readout asks about.
+bool client_running() { return ec::state().pid != 0 || g_client_seen.load(); }
 
 std::string ident_user()  { std::lock_guard<std::mutex> lk(g_ident_mux); return g_ident_user; }
 std::string ident_place() { std::lock_guard<std::mutex> lk(g_ident_mux); return g_ident_place; }

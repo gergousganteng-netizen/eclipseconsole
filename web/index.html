@@ -37,10 +37,10 @@
       <button class="menu-btn" id="btnEdit">Edit</button>
     </div>
     <!-- Settings and the window controls. Arm was briefly a state chip here
-         and went back to the bottom bar beside Run and Stop -- it reads better
-         next to the other things you press while a snippet is in front of you,
-         and the .armed class on the button plus the DataModel readout already
-         make the state legible down there. -->
+         and lives in the toolbar beside Run and Stop -- it reads better next to
+         the other things you press while a snippet is in front of you, and the
+         .armed class on the button plus the DataModel readout already make the
+         state legible there. -->
     <div class="tb-right">
       <button class="cmdk-gear" id="btnSettings" title="Settings (Ctrl+,)" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -68,7 +68,11 @@
 
     <aside class="sidebar">
       <div class="side-scroll">
-        <div class="side-label">Snippets <span class="add" id="btnNew" title="New snippet">+</span></div>
+        <!-- "Explorer", not "Snippets": the tree below is already labelled
+             Snippets by its own root crumb, and the header saying it too was
+             the same word twice in 30px of vertical space. This names the
+             PANE; the crumb names what is in it. -->
+        <div class="side-label">Explorer <span class="add" id="btnNew" title="New snippet">+</span></div>
         <!-- Where you are, when the tree is showing one folder instead of all
              of them. Hidden until it has something to say. -->
         <div class="crumbs" id="crumbs" hidden></div>
@@ -79,35 +83,34 @@
       </div>
       <!-- The kit's identity footer has no backing here (no accounts), so the
            pinned strip carries the attach readout instead. -->
-      <!-- Two rows. Adding Launch to the identity line meant four things
-           competing for a 208px sidebar, which truncated the attach readout
-           and squashed the status dot. The button gets its own full-width row
-           above; the identity line is unchanged from before it existed. -->
+      <!-- Two rows separated by a hairline: the trash above, the attach
+           readout below. The trash is a TOOL (you press it) and the readout is
+           a READOUT (you read it); on one shared row they competed for the
+           same 208px and neither was quick to find. The rule is what says they
+           are different kinds of thing.
+
+           No "Recover deleted" label any more. It was there because a bare bin
+           reads as "delete" rather than "undo" -- still true, so the wording
+           moved into the tooltip renderTrashCount() writes, which names the
+           action and the count. The icon plus the number is the whole message
+           at a glance, and the label was spending a third of the sidebar to
+           repeat the drawing.
+
+           Launch moved to the toolbar beside the Roblox mark. It only ever
+           appeared while detached, which made the footer's height change under
+           you, and it belongs with the other things you press. -->
       <div class="side-foot">
-        <div class="foot-tools">
-          <!-- Deleted snippets are moved to snippets\.trash, not unlinked, and
-               nothing said so: a bare bin icon reads as "delete", not "undo".
-               The label is what tells you the work is still there, and the
-               count is what stops the folder filling up invisibly. -->
-          <button class="foot-trash" id="btnTrash" title="Restore deleted snippets">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>
-            </svg>
-            <span class="lbl">Recover deleted</span>
-            <span class="n" id="trashN"></span>
-          </button>
-        </div>
+        <button class="foot-trash" id="btnTrash" title="Restore deleted snippets">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>
+          </svg>
+          <span class="n" id="trashN"></span>
+        </button>
 
         <div class="foot-id">
           <span class="pulse-dot" id="pulse"></span>
-          <div class="who" id="footState">detached</div>
-          <!-- Only shown while detached, which is also what makes it fit here:
-               "detached" is short, and by the time the readout grows to
-               "name · pid 12252" this button is already gone. The watcher
-               attaches on its own, so this exists purely to save alt-tabbing
-               out to start a client. -->
-          <button class="foot-launch" id="btnLaunch" title="Start Roblox" hidden>Launch</button>
+          <div class="who" id="footState">No client</div>
         </div>
       </div>
     </aside>
@@ -120,6 +123,88 @@
 
       <div class="tabstrip" id="tabstrip">
         <div class="spacer"></div>
+      </div>
+
+      <!-- The action bar, UNDER the tabs, because it acts on the file the tabs
+           name. It used to be the bottom bar, a whole editor's height away from
+           the code it runs.
+
+           READ IT RIGHT TO LEFT. Run is the rightmost control in the window
+           because it is the one pressed most, and the groups step away from it
+           in that order: run/stop/arm, then the client, then save. So the
+           source order here is the reverse of the reading order. -->
+      <div class="toolbar">
+        <div class="tb-file" id="tbFile"></div>
+        <div class="tb-gap"></div>
+
+        <div class="tb-grp">
+          <button class="tbtn" id="btnSave" title="Save  (Ctrl+S)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h7V3"/><path d="M8 14h8"/>
+            </svg>
+            Save
+          </button>
+        </div>
+
+        <div class="tb-div"></div>
+
+        <div class="tb-grp">
+          <!-- ICON ONLY, and the icon is Roblox's own mark -- a tilted square
+               with a square hole, one path with fill-rule="evenodd" so the hole
+               is a hole and not a second shape painted over the first. The
+               brand names the thing better than the word "Attach" did, and
+               which state it is in is already spelled out on the sidebar
+               readout, so the button does not have to carry that too. -->
+          <button class="tbtn icon attach" id="btnAttach" title="Clients" aria-label="Clients">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd"
+                    d="M6.2 2.6l15.2 4.1-4.1 15.2-15.2-4.1z
+                       M9.97 9.07l5.02 1.35-1.35 5.02-5.02-1.35z"/>
+            </svg>
+          </button>
+          <!-- ALWAYS VISIBLE, attached or not. It used to hide once a client
+               was attached, on the reasoning that it had nothing left to do --
+               but starting a SECOND client is a real thing to want, and a
+               button that vanishes also shifts every control to its left the
+               moment the watcher attaches on its own.
+               Two icons, one showing at a time: .loading swaps the rocket for
+               the spinner. Launching hands a URI to the shell and nothing comes
+               back to say it worked, so the spinner is what says the click
+               landed -- it stops when a client actually turns up. -->
+          <button class="tbtn" id="btnLaunch" title="Start Roblox">
+            <svg class="ico-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0z"/>
+              <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+              <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+              <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+            </svg>
+            <svg class="ico-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round">
+              <path d="M12 3a9 9 0 1 0 9 9"/>
+            </svg>
+            <span class="lbl">Launch</span>
+          </button>
+        </div>
+
+        <div class="tb-div"></div>
+
+        <div class="tb-grp">
+          <button class="tbtn" id="btnArm" title="Writes are logged and never performed. Press to allow them.">Arm</button>
+          <!-- Run and Stop are SEPARATE, not one button that changes meaning.
+               With several snippets able to run at once, one control cannot
+               express both "run this" and "stop which?" -- and a button whose
+               label depends on state is the one you misclick. -->
+          <button class="tbtn danger" id="btnStop" disabled title="Stop a run">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+            <span class="lbl">Stop</span>
+          </button>
+          <button class="tbtn primary" id="btnRun" title="Run  (F5)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>
+            <span class="lbl">Run</span>
+          </button>
+        </div>
       </div>
 
       <div class="editor-wrap">
@@ -195,18 +280,10 @@
         <div class="log" id="log"></div>
       </div>
 
+      <!-- Purely a readout now -- every button moved to the toolbar -- and 36px
+           to match the toolbar, so the editor sits between two bars of the same
+           weight. See app.css for the three heights this went through. -->
       <div class="bottombar">
-        <button class="btn btn-primary" id="btnRun">Run <span class="kbd">F5</span></button>
-        <!-- Run and Stop are SEPARATE, not one button that changes meaning.
-             With several snippets able to run at once, one control cannot
-             express both "run this" and "stop which?" -- and a button whose
-             label depends on state is the one you misclick. -->
-        <button class="btn" id="btnStop" disabled>Stop</button>
-        <button class="btn" id="btnArm" title="Writes are logged and never performed. Press to allow them.">Arm</button>
-        <div class="sep"></div>
-        <button class="btn" id="btnAttach" title="Attach to the running client.">Attach</button>
-        <button class="btn" id="btnSave">Save <span class="kbd">⌘S</span></button>
-
         <div class="status-cluster">
           <div class="stat s-pid"><span class="k">pid</span><span class="v" id="stPid">—</span></div>
           <div class="stat s-base"><span class="k">base</span><span class="v" id="stBase">—</span></div>
@@ -356,15 +433,55 @@
     </div>
   </div>
 
-  <!-- Multi-instance picker. Appears when 2+ Roblox clients are detected on
-       attach, and again from the status bar dropdown on demand. Shape borrows
-       from .palette-overlay so it inherits the kit's dim + centring styles. -->
-  <div class="palette-overlay" id="candOverlay">
-    <div class="palette" style="width:520px">
-      <div class="cand-head">Roblox — pick a client</div>
-      <div class="palette-list" id="candList"></div>
+  <!-- The clients panel. Opened by the toolbar's Roblox mark, and still opened
+       by the host (OPEN_PICKER:) when an attach finds several clients and needs
+       one picked.
+
+       A SLIDE-IN, not the centred modal it replaces. Picking a client is not a
+       decision about the document, so it does not deserve the middle of the
+       screen; and unlike the modal this is a place you go on purpose to SEE
+       what is attached, which a dialog that only appeared on ambiguity could
+       never be. The old .cand-* markup is gone with it.
+
+       Absolutely positioned inside .window, so the scrim blurs the app and
+       stops short of the window's own rounded frame. -->
+  <div class="att-scrim" id="attScrim"></div>
+  <aside class="att-panel" id="attPanel" role="dialog" aria-label="Clients">
+    <div class="att-head">
+      <span class="att-title">Clients</span>
+      <!-- Refreshing is one process walk and ~100ms; the panel asks on every
+           open, so this is only for watching a client finish loading. -->
+      <button class="att-x" id="attRefresh" title="Refresh" aria-label="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 10a8 8 0 0 1 13.7-5.7L20 6"/><path d="M20 3v3.5h-3.5"/>
+          <path d="M20 14a8 8 0 0 1-13.7 5.7L4 18"/><path d="M4 21v-3.5h3.5"/>
+        </svg>
+      </button>
+      <button class="att-x" id="attClose" title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
-  </div>
+    <div class="att-list" id="attList"></div>
+    <div class="att-foot">
+      <span class="grow" id="attCount"></span>
+      <button class="att-act" id="attLaunch" title="Start Roblox">
+        <svg class="ico-rocket" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0z"/>
+          <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+          <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+          <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+        </svg>
+        <svg class="ico-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round">
+          <path d="M12 3a9 9 0 1 0 9 9"/>
+        </svg>
+        <span class="lbl">Launch Roblox</span>
+      </button>
+    </div>
+  </aside>
 
 </div>
 

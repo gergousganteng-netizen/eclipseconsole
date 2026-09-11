@@ -101,3 +101,47 @@ void lookup_place_name_async(uint64_t place_id) {
         send_place_name(place_id, name);
     }).detach();
 }
+
+// ---- avatar headshots -------------------------------------------------------
+//
+// The clients panel shows a headshot per account. The fetching, batching and
+// on-disk cache already exist in core/features/net.cpp behind fx_avatar_url --
+// this is only the page-facing wrapper, so there is exactly one avatar cache in
+// the tree and snippets and the UI share it.
+//
+// fx_avatar_url NEVER BLOCKS: the first call for an id queues it and returns 0,
+// and a later call returns the URL. That is the right shape for a snippet's
+// poll loop and the wrong one for a message handler, which is asked once and
+// has to answer once -- so the polling happens here, on a thread of its own.
+//
+// Bounded, and the bound is the point: net.cpp gives up on an id after a few
+// tries and then returns 0 forever, so an unbounded wait would be a thread
+// parked for the life of the process on an account that simply has no headshot.
+//
+// Declared here rather than by including fx.h: that header is the SNIPPET
+// surface and the host deliberately does not include it (several of its helpers
+// are static inline and would be compiled into the host as copies). attach.cpp
+// declares the reads it needs the same way.
+extern "C" int fx_avatar_url(int64_t userid, char* buf, size_t n);
+
+void lookup_avatar_async(int64_t user_id) {
+    if (user_id <= 0) return;
+    std::thread([user_id]() {
+        char url[512];
+        // ~6s at the outside. The batch worker coalesces every id queued in the
+        // same window into one request, so opening the panel with three clients
+        // costs one round trip and all three land together.
+        for (int i = 0; i < 40; i++) {
+            if (fx_avatar_url(user_id, url, sizeof url)) {
+                std::ostringstream m;
+                m << "AVATAR:" << user_id << "|" << url;
+                ui_post(m.str());
+                return;
+            }
+            Sleep(150);
+        }
+        // No message on failure. The row already drew the account's initial,
+        // which is what an absent headshot should leave behind -- telling the
+        // page "no avatar" would only ask it to redraw the same thing.
+    }).detach();
+}

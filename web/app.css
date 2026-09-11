@@ -395,28 +395,28 @@ body.ground { padding: 0; display: block; }
 }
 
 /* ---------------------------------------------------------------------------
-   Bottom-bar status, narrow windows.
+   Bottom-bar status.
 
-   The kit pins .status-cluster to the right and lets it overflow. At the 900px
-   minimum the DataModel readout was pushed clean off the edge -- not wrapped,
-   not hidden, just gone, with "offsets 394" left flush against the border. A
-   readout that silently truncates is worse than one that isn't there, because
-   you cannot tell which you are looking at.
+   STAYS PINNED RIGHT (the kit's margin-left:auto). Left-aligning it was tried
+   when the buttons moved up to the toolbar and the bar emptied -- it put the
+   readout directly under the snippet list, where it read as part of the
+   sidebar rather than as the window's own status line.
 
-   So drop fields deliberately, least useful first, keeping whatever remains
-   whole. pid goes first and costs nothing: the attached pill in the bottom left
-   already says "attached - pid 31848". DataModel is kept longest, since it is
-   the one field that says the tool is actually working.                       */
-@media (max-width: 1100px) { .status-cluster .s-pid  { display: none; } }
-@media (max-width: 1000px) { .status-cluster .s-base { display: none; } }
-@media (max-width:  940px) { .status-cluster .s-off  { display: none; } }
+   The four fields fit in roughly 530px and the window's minimum is 900, so the
+   staged drop-fields-least-useful-first rules that used to live here are gone:
+   they hid pid, then base, then offsets at widths where there is now plenty of
+   room, because they were sized against a bar that also carried six buttons.
+   If the minimum width ever drops below ~600px, bring them back -- a readout
+   that silently truncates is worse than one that is not there, because you
+   cannot tell which you are looking at.
 
-/* Below this even the DataModel address will not fit beside the buttons. Keep
-   the word, drop the pointer -- "DataModel" alone still answers the question
-   the readout exists to answer. */
-@media (max-width: 880px) {
-  .status-cluster .attached { max-width: 130px; overflow: hidden;
-                              text-overflow: ellipsis; white-space: nowrap; }
+   HEIGHT: 36px, matching the toolbar exactly, so the window has an action bar
+   and a status bar of the same weight top and bottom of the editor. The kit's
+   52 is sized for a row of buttons and reads as an empty shelf without them;
+   26 and 32 were both tried and read as a crack rather than a strip. */
+.bottombar {
+  height: 36px; flex: 0 0 36px;
+  padding: 0 var(--sp-3);
 }
 
 /* ---------------------------------------------------------------------------
@@ -617,6 +617,33 @@ body.zoomed .resizers { display: none; }
 .side-scroll { display: flex; flex-direction: column; }
 .scripts { flex: 1 1 auto; min-height: 80px; }
 
+/* ---- The pane header ------------------------------------------------------
+   The kit's .side-label carries margin-top:18px so consecutive sections in a
+   long rail get air between them. There are no consecutive sections here --
+   there is exactly one, and it is the FIRST thing in the pane, so that margin
+   stacked on .side-scroll's own 10px of padding and left 28px of nothing
+   between the titlebar and the word. Only the top is dropped; the 7px below
+   it still separates the header from the crumbs. */
+.side-scroll > .side-label:first-child { margin-top: 0; }
+
+/* Bigger and brighter than a kit section kicker, because it is not one: it
+   names the whole pane, the way the titlebar names the window. Sentence case,
+   not the kit's uppercase -- at this size SHOUTING reads as a banner rather
+   than as a title, and the tracking that makes small caps legible only spreads
+   it further. --fg-mut, not --fg: the snippet NAMES below are the primary
+   content, and a header shouting over them inverts that. */
+.side-scroll > .side-label:first-child {
+  font-size: var(--fs-lg);
+  color: var(--fg-mut);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: 9px;
+}
+.side-scroll > .side-label:first-child .add {
+  font-size: var(--fs-xl);
+  line-height: 1;
+}
+
 /* Same treatment as the textarea, for the same reason: a classic scrollbar is
    part of the layout, not drawn over it, so the rows reflowed to a narrower
    width the moment the list outgrew the panel -- names re-ellipsised and the
@@ -647,15 +674,6 @@ body.zoomed .resizers { display: none; }
   display: flex; align-items: center; flex-wrap: wrap;
   gap: 1px;
 }
-/* Where the tree lives, not a folder in it -- so it reads as context: no
-   hover, no pointer, no drop target. */
-.crumb-home {
-  padding: 1px 2px;
-  opacity: 0.7;
-  white-space: nowrap;
-  cursor: default;
-}
-
 .crumb-nav {
   /* Sized off the glyph rather than the row: at the crumb text size the arrow
      head was a couple of pixels of stroke and read as a dash. These are the two
@@ -875,40 +893,236 @@ body.zoomed .resizers { display: none; }
 }
 .prompt-note[hidden] { display: none; }
 
-/* ---- candidate picker --------------------------------------------------
-   Sits in the same .palette-overlay shell as the offset palette, so the
-   dim + centering come free. Rows are custom: they have to fit username,
-   display name, place, pid and monitor without wrapping. */
-.cand-head {
-  padding: 14px 18px 10px;
-  font-size: 12.5px;
-  color: var(--fg-mut);
+/* ---- the toolbar --------------------------------------------------------
+   The action strip, under the tabs. See index.html for why the source order is
+   the reverse of the reading order. */
+.toolbar {
+  display: flex; align-items: center; gap: var(--sp-2);
+  height: 36px; flex: 0 0 36px;
+  padding: 0 var(--sp-3);
+  background: var(--bg-1);
   border-bottom: 1px solid var(--line-soft);
 }
-.cand-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
-  align-items: baseline;
-  padding: 12px 18px;
-  cursor: pointer;
+/* What you are looking at. Quiet, mono, truncating -- context, not a control.
+   Without it the bar was a cluster of buttons floating in an empty strip. */
+.tb-file {
+  font-family: var(--mono); font-size: var(--fs-sm);
+  color: var(--fg-faint);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tb-file .dirty { color: var(--accent); }
+/* Takes the slack, which is what pins the groups to the right edge. */
+.tb-gap { flex: 1 1 auto; min-width: var(--sp-2); }
+
+.tb-grp { display: flex; align-items: center; gap: var(--sp-1); }
+.tb-div { width: 1px; height: 16px; flex: none; background: var(--line); margin: 0 var(--sp-1); }
+
+/* OUTLINED AT REST, like the .btn it replaced. Borderless-until-hovered was
+   tried and it made the bar read as a row of labels: with nothing to bound
+   them, "Arm Stop Run" ran together as one phrase and there was no way to see
+   where a click would land without moving the pointer over it. */
+.tbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 9px;
+  background: transparent;
+  /* --line-soft, not --line: at this size a row of six boxes in the brighter
+     hairline read as a grid drawn over the bar. The outline only has to say
+     "this is a target", not draw a frame. */
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  color: var(--fg-mut);
+  font: inherit; font-size: var(--fs-md);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.tbtn svg { width: 13px; height: 13px; flex: none; }
+.tbtn:hover { background: var(--bg-hover); color: var(--fg); border-color: var(--line); }
+.tbtn:disabled {
+  opacity: 0.38; cursor: default;
+  background: transparent; color: var(--fg-mut); border-color: var(--line-soft);
+}
+.tbtn[hidden] { display: none; }   /* beats the inline-flex above */
+
+/* Run is the primary action and the only FILLED control in the bar. One filled
+   button, or none of them means anything. */
+.tbtn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.tbtn.primary:hover { background: var(--accent-press); border-color: var(--accent-press); color: var(--on-accent); }
+.tbtn.primary:disabled { background: var(--accent); border-color: var(--accent); opacity: 0.38; color: var(--on-accent); }
+
+/* ---- the rocket / spinner swap ------------------------------------------
+   Launching hands a URI to the shell; nothing comes back to say it worked, and
+   a bootstrapper sitting on an update can take a while. The spinner is the only
+   acknowledgement the click gets, and app.js stops it when a client turns up. */
+.ico-spin { display: none; }
+.loading .ico-rocket { display: none; }
+.loading .ico-spin   { display: block; animation: att-spin .7s linear infinite; }
+
+/* Armed is a STATE, so it is the one button allowed to look different while
+   nothing is hovered. Red, exactly as .btn.armed was in the bottom bar: arming
+   is the one destructive affordance in the app and --err is what the kit
+   reserves for that. Worn by Stop too, while anything is running -- same
+   meaning, "something is live right now". */
+.tbtn.armed {
+  color: var(--err);
+  border-color: var(--err);
+  background: transparent;
+}
+.tbtn.armed:hover { background: var(--bg-hover); color: var(--err); }
+/* Destructive on approach only; red at rest would read as a warning. */
+.tbtn.danger:hover { color: var(--err); }
+
+/* Icon-only buttons are square, so the hit area does not read as a label with
+   the text missing. */
+.tbtn.icon { width: 25px; padding: 0; justify-content: center; gap: 0; }
+
+/* The Roblox mark is a LOGO, not an interface glyph, so it keeps its own
+   weight instead of taking the bar's resting --fg-mut like the stroked icons
+   beside it -- and it does not brighten on hover, because there is nowhere
+   brighter to go. */
+/* NO OUTLINE. A brand mark is a picture, not a labelled control, and a box
+   around it read as an empty button someone had forgotten to fill. */
+.tbtn.attach { color: var(--fg); border-color: transparent; }
+.tbtn.attach:hover { border-color: transparent; }
+.tbtn.attach svg { width: 14px; height: 14px; }
+.tbtn.attach:hover { background: var(--bg-hover); color: var(--fg); }
+
+/* ---- the clients panel --------------------------------------------------
+   Slides in from the right edge over the app. Replaced a centred modal: that
+   shape suited a question forced on you ("two clients, pick one") and suits a
+   place you OPEN badly, because a dialog in the middle of the screen says the
+   document is blocked when nothing is.
+
+   Absolutely positioned inside .window, not fixed to the viewport, so the
+   blur stops at the window's own rounded frame. */
+/* BELOW THE TITLEBAR, both of them. Covering the whole window -- which is what
+   .palette-overlay does -- put the panel's own header and close button directly
+   under the minimize/maximize/close row, two sets of controls in the same 44px,
+   and made the window's own unreachable while the panel was up. */
+.att-scrim {
+  position: absolute; top: var(--h-titlebar); right: 0; bottom: 0; left: 0;
+  z-index: 40;
+  background: var(--scrim);
+  /* Blurred rather than only dimmed: the panel then reads as being in front of
+     the app rather than as a different screen. */
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-panel) var(--ease);
+}
+.att-scrim.open { opacity: 1; pointer-events: auto; }
+
+.att-panel {
+  position: absolute; top: var(--h-titlebar); right: 0; bottom: 0; z-index: 41;
+  width: 330px;
+  display: flex; flex-direction: column;
+  background: var(--bg-1);
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 40px rgba(0, 0, 0, .45);
+  /* translate, not `right`, so the slide is composited and does not relayout
+     the list on every frame. */
+  transform: translateX(100%);
+  transition: transform var(--t-panel) var(--ease-spring);
+}
+.att-panel.open { transform: translateX(0); }
+
+.att-head {
+  display: flex; align-items: center; gap: var(--sp-1);
+  height: var(--h-titlebar); flex: none;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
   border-bottom: 1px solid var(--line-soft);
+}
+.att-title { font-size: var(--fs-xl); color: var(--fg); flex: 1; }
+.att-x {
+  width: 24px; height: 24px; flex: none;
+  display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: var(--r-sm);
+  color: var(--fg-dim); cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.att-x:hover { background: var(--bg-hover); color: var(--fg); }
+.att-x svg { width: 13px; height: 13px; }
+.att-x.spin svg { animation: att-spin .6s linear infinite; }
+@keyframes att-spin { to { transform: rotate(360deg); } }
+
+.att-list { flex: 1; overflow-y: auto; padding: var(--sp-2); min-height: 0; }
+
+/* One client per row. The avatar is the fastest way to tell two accounts
+   apart at a glance, which is most of what this panel is for. */
+.att-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r-ctl);
+  border: 1px solid transparent;
+  cursor: pointer;
   transition: background var(--t-fast) var(--ease);
 }
-.cand-row:last-child { border-bottom: 0; }
-.cand-row:hover { background: var(--bg-2); }
-.cand-row.disabled { cursor: not-allowed; opacity: 0.55; }
-.cand-row.disabled:hover { background: transparent; }
-.cand-name  { font-weight: 600; color: var(--fg); font-size: 14px; }
-.cand-disp  { color: var(--fg-mut); font-weight: 500; margin-left: 6px; font-size: 12.5px; }
-.cand-place { color: var(--fg-faint); font-size: 12px; }
-.cand-meta  { color: var(--fg-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.att-row:hover { background: var(--bg-hover); }
+/* The one we are on. Bordered rather than filled, so it reads as "this one"
+   and not as "hovered". */
+.att-row.current { background: var(--bg-2); border-color: var(--accent-line); }
+.att-row.disabled { cursor: not-allowed; opacity: 0.55; }
+.att-row.disabled:hover { background: transparent; }
 
-/* Status bar dropdown: the "attached · pid N" text becomes clickable when
-   multiple candidates exist. Chevron on the right hints the click. */
+.att-pfp {
+  width: 34px; height: 34px; flex: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--avatar-hi), var(--avatar-lo));
+  border: 1px solid var(--line);
+  display: grid; place-items: center;
+  font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--accent);
+  overflow: hidden;
+}
+/* The fetched headshot, once it lands. Sits over the initial rather than
+   replacing it, so a failed image leaves a letter and not a hole. */
+.att-pfp img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.att-meta { min-width: 0; flex: 1; }
+.att-name {
+  font-size: var(--fs-lg); color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.att-name .at { color: var(--fg-dim); font-size: var(--fs-sm); margin-left: 5px; }
+.att-place {
+  font-size: var(--fs-sm); color: var(--fg-faint); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.att-empty { padding: var(--sp-5) var(--sp-3); text-align: center; color: var(--fg-faint); font-size: var(--fs-sm); }
+
+.att-act {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--fg-mut);
+  font: inherit; font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.att-act svg { width: 12px; height: 12px; flex: none; }
+.att-act:hover { border-color: var(--line-strong); color: var(--fg); }
+/* Detach is the destructive one in the panel and says so on approach only --
+   red at rest would make the attached row look like an error. */
+.att-act.danger:hover { border-color: var(--err); color: var(--err); }
+
+.att-foot {
+  flex: none;
+  padding: 10px var(--sp-3);
+  border-top: 1px solid var(--line-soft);
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-sm); color: var(--fg-faint);
+}
+.att-foot .grow { flex: 1; }
+
+/* Status bar dropdown: the "Attached • Name" readout becomes clickable when
+   multiple candidates exist. Chevron on the right hints the click.
+   The negative margin cancels the padding's own indent, so gaining the hover
+   target does not shift the text away from the status dot beside it. */
 .attach-chip {
   cursor: pointer;
-  padding: 2px 8px;
+  padding: 2px 6px;
+  margin-left: -6px;
   border-radius: var(--r-sm);
   color: inherit;
   transition: background var(--t-fast) var(--ease);
@@ -1504,77 +1718,71 @@ body.offsets-stale #btnArm { border-color: var(--err); color: var(--err); }
 .trash-empty { padding: var(--sp-5); text-align: center; color: var(--fg-faint); }
 .link-btn.danger { color: var(--err); }
 
-/* ---- Trash button in the sidebar footer ---------------------------------
-   margin-left:auto pins it to the right edge, so the attach readout keeps the
-   left and the two never fight for the same space. */
-/* The footer stacks: status + Launch on one row, the trash on its own below.
-   The kit's .side-foot is a single centred flex row, which is right until a
-   fourth control shows up -- at the default 208px sidebar all four squeezed
-   the attach readout into an ellipsis and squashed the status dot. */
-.side-foot { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+/* ---- The sidebar footer: trash over attach readout -----------------------
+   The kit's .side-foot is a single centred flex row of identity fields. Here
+   it is two stacked rows with a hairline between them, because the two halves
+   are different KINDS of thing -- the bin is a control, the readout is state
+   -- and sharing a row at 208px made both slow to find. Zero gap: the rule
+   does the separating, and its own padding supplies the space. */
+.side-foot {
+  flex-direction: column; align-items: stretch;
+  gap: 0;
+  padding: 0;
+}
 
-.foot-id { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.foot-id {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  border-top: 1px solid var(--line-soft);
+  padding: 7px var(--sp-3);
+}
 /* A flex item with no basis shrinks; the dot is a circle and must not. */
 .foot-id .pulse-dot { flex: none; }
-/* Truncate the pid label rather than shoving the button off the edge. In
-   practice it never has to: the readout is only long once ATTACHED, and the
-   button is hidden by then. */
-.foot-id .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Now that the bin carries a label it reads as a row rather than as a floating
-   icon, so it aligns left with everything else in the sidebar and fills the
-   width. The kit's .foot-trash pins itself right with margin-left:auto, which
-   has to be undone here or the label sits jammed against the edge. */
-.foot-tools { display: flex; align-items: center; }
-.foot-tools .foot-trash {
-  margin-left: 0;
-  width: 100%;
-  justify-content: flex-start;
-  padding: 4px 6px;
+/* GREY AND STILL WHEN THERE IS NOTHING TO BE ALIVE ABOUT. applyState toggles
+   .on with the pid, but nothing styled it -- so the kit's dot sat green and
+   ringing beside the words "Not attached": a heartbeat for a thing that was not
+   there, and the one element in the strip the eye goes to first. */
+.pulse-dot:not(.on) { background: var(--fg-faint); }
+.pulse-dot:not(.on)::after { animation: none; opacity: 0; }
+/* The display name is user data and can be any length, so it truncates rather
+   than widening the sidebar or wrapping onto a second line. */
+.foot-id .who {
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-md);
 }
-.foot-tools .foot-trash .lbl { font-size: var(--fs-sm); }
-/* The count keeps to the far right, so a growing label never shifts it. */
-.foot-tools .foot-trash .n { margin-left: auto; }
+/* The account, once we have one. The rest of the line ("Attached • ") is
+   quieter, so the name is what the eye lands on. */
+.foot-id .who .nm { color: var(--fg); }
 
-.foot-launch {
-  margin-left: auto;
-  flex: none;
-  max-width: 60%;          /* never crowd the readout out of its own row */
-  padding: 4px 9px;
-  background: transparent;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-sm);
-  color: var(--fg-mut);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--fs-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
-              border-color var(--t-fast) var(--ease);
-}
-.foot-launch:hover { background: var(--bg-hover); color: var(--fg); border-color: var(--line-strong); }
-
+/* Icon + count, no label. Full width so the whole strip is the hit target --
+   a 20px bin in the corner of a 208px rail is a small thing to aim at. The
+   kit pins it right with margin-left:auto, which has to be undone here. */
 .foot-trash {
-  margin-left: auto;
+  margin-left: 0;                /* the kit pins it right; this is a row now */
+  width: 100%;
   flex: none;
-  display: flex; align-items: center; gap: 5px;
-  padding: 3px 6px;
+  display: flex; align-items: center; justify-content: flex-start;
+  gap: 7px;
+  padding: 7px var(--sp-3);
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  color: var(--fg-faint);
+  border: 0;
+  border-radius: 0;
+  color: var(--fg-dim);
   cursor: pointer;
   font: inherit;
   transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
-.foot-trash:hover { background: var(--bg-hover); color: var(--fg-mut); border-color: var(--line-soft); }
-.foot-trash svg { width: 13px; height: 13px; }
+/* The count keeps to the far right, so it sits under the readout's right end
+   rather than floating in the middle of an empty row. */
+.foot-trash .n { margin-left: auto; }
+.foot-trash:hover { background: var(--bg-hover); color: var(--fg-mut); }
+.foot-trash svg { width: 15px; height: 15px; flex: none; }
 .foot-trash .n {
   font-family: var(--mono);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 /* Empty trash keeps the icon but drops the number: an always-present "0" is
    noise, while a vanishing icon would make the strip jump every time you
@@ -1648,10 +1856,9 @@ body.app-mode #resizers { display: none; }
    half the bar empty, which read as a dialog that had lost something. Narrower,
    with the footer buttons sharing the width, the bar IS the answer row. */
 #runOverlay .export-box { width: 430px; }
-/* Header styled like the client picker's (.cand-head): a titled strip with a
-   rule under it, rather than .palette-input's search-field framing. Both are
-   the same kind of thing -- "here is the question, here are the answers" --
-   and they should not look like two different components. */
+/* A titled strip with a rule under it, rather than .palette-input's
+   search-field framing: this is "here is the question, here are the answers",
+   not a search. */
 #runOverlay .palette-input {
   padding: 14px 18px 10px;
   border-bottom: 1px solid var(--line-soft);

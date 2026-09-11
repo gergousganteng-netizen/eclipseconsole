@@ -19,6 +19,11 @@ void do_attach(bool quiet = false, bool force = false, uint32_t target_pid = 0);
 // Manual "Refresh offsets" from Settings; runs on its own thread.
 void refresh_offsets_async();
 
+// The clients panel asked for the client list. Enumerates on its own thread
+// and answers with CANDIDATES -- at ANY count, unlike the picker's own pushes,
+// which only fire when there is something to disambiguate.
+void list_clients_async();
+
 // One tick of the liveness watcher's attach work: attach when a client turns
 // up, detach when it exits, re-resolve the DataModel, refresh the picker.
 void attach_poll();
@@ -32,6 +37,12 @@ void attach_to_pid(uint32_t pid);
 // One full attach look has happened. Consulted by reveal_window and
 // hud_tick's no-client valve; see the flag's comment in attach.cpp.
 bool attach_probed();
+
+// Is a Roblox client running at all, attached or not? Feeds the sidebar
+// readout, which says "No client" when there is nothing to attach to and
+// "Not attached" when there is. Updated by attach_poll; see the flag in
+// attach.cpp for why it costs nothing extra.
+bool client_running();
 
 // The in-game panel header's identity. refresh_identity re-derives on a
 // pid/DataModel change; the getters feed push_state.

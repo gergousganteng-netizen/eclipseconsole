@@ -295,6 +295,9 @@ void push_state() {
       << "\"armed\":"      << (s.armed ? "true" : "false")
       << ",\"user\":\""     << json_escape(ident_user())  << "\""
       << ",\"place\":\""    << json_escape(ident_place()) << "\""
+      // Detached-only question: is there a client to attach TO? The sidebar
+      // readout says "No client" or "Not attached" from this.
+      << ",\"client\":"     << (client_running() ? "true" : "false")
       << "}";
     ui_post("STATE:" + j.str());
     hud_push("STATE:" + j.str());
@@ -824,6 +827,14 @@ void handle(const std::string& msg) {
         attach_reattach();
         return;
     }
+    if (msg == "CLIENTS") {
+        // The clients panel opened and wants a list. The old picker only ever
+        // got one when 2+ clients existed -- that was enough for a modal whose
+        // whole reason to exist was ambiguity, and is not enough for a panel
+        // you open on purpose: with one client it would have come up empty.
+        list_clients_async();
+        return;
+    }
     if (starts("ATTACH_PID:")) {
         // The page picked one from the CANDIDATES modal.
         uint32_t pid = (uint32_t)strtoul(msg.c_str() + 11, nullptr, 10);
@@ -836,6 +847,14 @@ void handle(const std::string& msg) {
         // result arrives asynchronously as PLACE_NAME:<pid>|<name>.
         uint64_t pid = strtoull(msg.c_str() + 13, nullptr, 10);
         if (pid) lookup_place_name_async(pid);
+        return;
+    }
+    if (starts("LOOKUP_AVATAR:")) {
+        // Same shape as LOOKUP_PLACE, and for the same reason -- the page
+        // cannot reach Roblox from a file:// origin. Answered as
+        // AVATAR:<userId>|<url>, or not at all if there is no headshot.
+        int64_t uid = strtoll(msg.c_str() + 14, nullptr, 10);
+        if (uid > 0) lookup_avatar_async(uid);
         return;
     }
 
