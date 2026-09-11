@@ -112,3 +112,5 @@ _______________________________
 ## Side bar weird gap and improvement
 - Fix the gap between top bar and "Snippet" text
 - Brighter "snippet" text accent choice
+- Change "Snippet" to "Explorer" with bigger text size
+- Change "%APPDATA% > Snippet" to just "Snippet" 
