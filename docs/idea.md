@@ -50,17 +50,17 @@ Replace current settings with tabbed interface:
 
 **Below the code editor tab, add a toolbar with execution controls:**
 
-### Left Side: Execution Controls
+### Right Side: Execution Controls
 - **Run** — Execute current snippet
 - **Stop** — Halt running snippet
 - **Launch** — Opens Quick Access Menu with Roblox launch option (shares same action as Quick Access Menu)
 
-### Right Side: Client Attachment
+### Next To Launch: Client Attachment
 - **Attach Button** — Roblox logo icon, triggers a slide-in panel from the right edge
 
 **When Attach is clicked, a modal panel slides in from the right:**
 - Blurs all background content
-- Displays client info:
+- Displays all clients info:
   ```
   (Pfp) DisplayName(@Username)
   - game name
