@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="120" viewBox="0 0 1440 120">
+  <rect width="100%" height="100%" fill="#f6f7f9"/>
+  <rect x="20" y="20" width="1400" height="36" fill="#ffffff" stroke="#e1e4e8"/>
+  <text x="1100" y="44" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111" text-anchor="end">Save | [Roblox] Launch | Arm  Stop  <tspan font-weight="700">Run</tspan></text>
+  <!-- Launch loading spinner state -->
+  <rect x="1200" y="26" width="88" height="28" rx="6" fill="#eef6ff" stroke="#d1e7ff"/>
+  <circle cx="1216" cy="40" r="6" fill="#0b66d2"/>
+  <text x="1260" y="46" font-size="13" text-anchor="middle" fill="#0b66d2">Launching…</text>
+</svg>
