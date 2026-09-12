@@ -115,6 +115,7 @@ Dedicated pinned menu tab welcoming user and with shortcuts:
 - **Launch Roblox** — Rocket icon with loading state indicator
   *(built, but in the toolbar — see Added. Share the same button here.)*
 - New snippet
+- Import snippet
 - Settings button
 - Other actions (TBD)
 
