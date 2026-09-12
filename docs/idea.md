@@ -134,11 +134,11 @@ Replace current settings with tabbed interface:
 - **Client** - In Client Options such App as Hud and etc
 - **Appearance** - Theme & visuals
 
-## Bottom Bar Height Optimization
-Reduce the bottom bar's vertical height while **preserving the text size**:
-- Tighten padding and vertical spacing within the bar to achieve a more compact footprint
-- Text (pid / base / offsets / DataModel) must remain at current size for readability
-- Improves visual balance between the toolbar and bottom status area without sacrificing legibility
+## Bottom Bar Vertical Compression
+Keep the bottom bar height reduced below 52px while scaling text to its original size from 52px:
+- Reduce the bar's vertical height with tighter padding and spacing
+- Scale text (pid / base / offsets / DataModel) proportionally larger to match the visual size at 52px height
+- Achieves a compact bar footprint without sacrificing text legibility or visual weight
 
 ---
 
