@@ -133,3 +133,8 @@ Replace current settings with tabbed interface:
 - **Client** - In Client Options such App as Hud and etc
 - **Appearance** - Theme & visuals
 
+## Another Change To Bottom Bar
+Height Shorter than the original while keeping the text size the original
+
+# How To Make Preview Mockup
+Copy the current ui html and other files. make it functionable so it faithful to the original ui, make the changes for preview. user may ask to make some changes, and approve or deny it
