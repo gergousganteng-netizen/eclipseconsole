@@ -134,8 +134,26 @@ Replace current settings with tabbed interface:
 - **Client** - In Client Options such App as Hud and etc
 - **Appearance** - Theme & visuals
 
-## Another Change To Bottom Bar
-Height Shorter than the original while keeping the text size the original
+## Bottom Bar Height Optimization
+Reduce the bottom bar's vertical height while **preserving the text size**:
+- Tighten padding and vertical spacing within the bar to achieve a more compact footprint
+- Text (pid / base / offsets / DataModel) must remain at current size for readability
+- Improves visual balance between the toolbar and bottom status area without sacrificing legibility
 
-# How To Make Preview Mockup
-Copy the current ui html and other files. make it functionable so it faithful to the original ui, make the changes for preview. user may ask to make some changes, and approve or deny it
+---
+
+# Creating Preview Mockups
+
+When building a preview mockup for a feature:
+
+1. **Copy the current UI** — Extract the existing `web/` folder with `index.html`, `app.js`, and CSS files (`app.css`, `tokens.css`, `components.css`).
+
+2. **Implement the feature** — Modify the copied files to make the proposed change functional and visually faithful to the original design.
+
+3. **Test interactivity** — Ensure the mockup is interactive and responsive, not just a static image. This helps reviewers understand the flow and feel.
+
+4. **Gather feedback** — Present the mockup to the user. They may request adjustments, refinements, or toggles to show alternatives.
+
+5. **Iterate** — Approve proposed changes, deny them, or go back to step 2 with revised requirements.
+
+This approach lets non-technical stakeholders see and interact with ideas before implementation, catching UX issues early.
