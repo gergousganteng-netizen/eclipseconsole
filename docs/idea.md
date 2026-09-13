@@ -140,6 +140,9 @@ Keep the bottom bar height reduced below 52px while scaling text to its original
 - Scale text (pid / base / offsets / DataModel) proportionally larger to match the visual size at 52px height
 - Achieves a compact bar footprint without sacrificing text legibility or visual weight
 
+## Better Rename fx_* API
+- fx_set/getfps > fx_set/getfpscap
+
 ---
 
 # Creating Preview Mockups
