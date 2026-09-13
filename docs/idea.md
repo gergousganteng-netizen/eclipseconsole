@@ -141,7 +141,9 @@ Keep the bottom bar height reduced below 52px while scaling text to its original
 - Achieves a compact bar footprint without sacrificing text legibility or visual weight
 
 ## Better Rename fx_* API
+Change all snippet that uses these
 - fx_set/getfps > fx_set/getfpscap
+- fx_http_get > fx_httpget
 
 ---
 
